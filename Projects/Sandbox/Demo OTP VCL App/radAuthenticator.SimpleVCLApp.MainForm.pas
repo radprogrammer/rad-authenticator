@@ -26,7 +26,7 @@ var
 
 implementation
 uses
-  radRTL.OTP;
+  radRTL.TOTP;
 
 
 {$R *.dfm}
@@ -39,7 +39,7 @@ end;
 
 procedure TForm3.CalculateButtonClick(Sender: TObject);
 begin
-  OTPResult.Text := Format('%.6d', [TOTP.GenerateTOTP(SecretKey.Text)]);
+  OTPResult.Text := Format('%.6d', [TOTP.GeneratePinNumber(SecretKey.Text)]);
 end;
 
 

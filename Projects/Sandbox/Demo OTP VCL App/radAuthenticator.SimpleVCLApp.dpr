@@ -6,7 +6,8 @@ uses
   radRTL.Base32Encoding in '..\..\..\Source\radRTL.Base32Encoding.pas',
   radRTL.BitUtils in '..\..\..\Source\radRTL.BitUtils.pas',
   radRTL.ByteArrayUtils in '..\..\..\Source\radRTL.ByteArrayUtils.pas',
-  radRTL.OTP in '..\..\..\Source\radRTL.OTP.pas';
+  radRTL.HOTP in '..\..\..\Source\radRTL.HOTP.pas',
+  radRTL.TOTP in '..\..\..\Source\radRTL.TOTP.pas';
 
 {$R *.res}
 

@@ -22,8 +22,10 @@ uses
   radRTL.BitUtils.Tests in '..\radRTL.BitUtils.Tests.pas',
   radRTL.ByteArrayUtils in '..\..\..\radRTL.ByteArrayUtils.pas',
   radRTL.ByteArrayUtils.Tests in '..\radRTL.ByteArrayUtils.Tests.pas',
-  radRTL.OTP in '..\..\..\radRTL.OTP.pas',
-  radRTL.OTP.Tests in '..\radRTL.OTP.Tests.pas';
+  radRTL.TOTP in '..\..\..\radRTL.TOTP.pas',
+  radRTL.TOTP.Tests in '..\radRTL.TOTP.Tests.pas',
+  radRTL.HOTP in '..\..\..\radRTL.HOTP.pas',
+  radRTL.HOTP.Tests in '..\radRTL.HOTP.Tests.pas';
 
 {$R *.RES}
 
@@ -31,12 +33,14 @@ begin
 
   DUnitTestRunner.RunRegisteredTests;
 
+  {$IFDEF WINDOWS}
   if IsConsole and (DebugHook <> 0) then
   begin
     //Allow developer to view console results within the IDE
     writeln('Hit any key to exit');
     readln;
   end;
+  {$ENDIF}
 
 end.
 

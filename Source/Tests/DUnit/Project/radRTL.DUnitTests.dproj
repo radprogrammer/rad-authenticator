@@ -97,8 +97,10 @@
         <DCCReference Include="..\radRTL.BitUtils.Tests.pas"/>
         <DCCReference Include="..\..\..\radRTL.ByteArrayUtils.pas"/>
         <DCCReference Include="..\radRTL.ByteArrayUtils.Tests.pas"/>
-        <DCCReference Include="..\..\..\radRTL.OTP.pas"/>
-        <DCCReference Include="..\radRTL.OTP.Tests.pas"/>
+        <DCCReference Include="..\..\..\radRTL.TOTP.pas"/>
+        <DCCReference Include="..\radRTL.TOTP.Tests.pas"/>
+        <DCCReference Include="..\..\..\radRTL.HOTP.pas"/>
+        <DCCReference Include="..\radRTL.HOTP.Tests.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
