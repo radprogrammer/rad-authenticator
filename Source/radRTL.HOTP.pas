@@ -20,10 +20,11 @@ type
   THOTP = class
   private const
     ModTable: array [0 .. 2] of integer = (1000000, 10000000, 100000000); // 6,7,8 zeros matching OTP Length
+    FormatTable: array [0 .. 2] of string = ('%.6d', '%.7d', '%.8d');     // 6,7,8 string length (padded left with zeros)
     RFCMinimumKeyLengthBytes = 16; // length of shared secret MUST be 128 bits (16 bytes)
   public
     /// <summary> HOTP: HMAC-Based One-Time Password Algorithm</summary>
-    class function GeneratePinNumber(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):integer;
+    class function GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
   end;
 
 
@@ -40,7 +41,7 @@ uses
 
 
 // https://datatracker.ietf.org/doc/html/rfc4226
-class function THOTP.GeneratePinNumber(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):integer;
+class function THOTP.GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
 
 var
   vEncodedKey:TBytes;
@@ -49,6 +50,7 @@ var
   vHMAC:TBytes;
   vOffset:integer;
   vBinCode:integer;
+  vPinNumber:Integer;
 begin
   vEncodedKey := TEncoding.UTF8.GetBytes(pBase32EncodedSecretKey); // assume secret was stored as UTF8  (prover and verifier must match)
   if Length(vEncodedKey) < RFCMinimumKeyLengthBytes then
@@ -64,8 +66,11 @@ begin
   vOffset := vHMAC[19] and $0F;
   vBinCode := ((vHMAC[vOffset] and $7F) shl 24) or ((vHMAC[vOffset + 1] and $FF) shl 16) or ((vHMAC[vOffset + 2] and $FF) shl 8) or (vHMAC[vOffset + 3] and $FF);
 
-  // trim result to 6,7, or 8 digits in length
-  Result := vBinCode mod THOTP.ModTable[Ord(pOutputLength)];
+  // trim hash result to 6, 7, or 8 digits in length
+  vPinNumber := vBinCode mod THOTP.ModTable[Ord(pOutputLength)];
+
+  // Format result, padded left with zeros as needed
+  Result := Format(FormatTable[Ord(pOutputLength)], [vPinNumber]);
 end;
 
 

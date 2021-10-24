@@ -12,14 +12,14 @@ uses
 type
 
 
-  TOTP = class(THOTP)
+  TTOTP = class(THOTP)
   private const
     TimeStepWindow = 30; // 30 is recommended value. "The prover and verifier MUST use the same time-step"
   protected
     class function GetCurrentUnixTimestamp():Int64;
   public
     /// <summary> TOTP: Time-Based One-Time Password Algorithm (most commonly used by Google Authenticaor)</summary>
-    class function GeneratePinNumber(const pBase32EncodedSecretKey:string; const pOutputLength:TOTPLength = TOTPLength.SixDigits):integer; overload;
+    class function GeneratePassword(const pBase32EncodedSecretKey:string; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string; overload;
   end;
 
 
@@ -32,16 +32,16 @@ uses
   radRTL.ByteArrayUtils;
 
 
-class function TOTP.GetCurrentUnixTimestamp():Int64;
+class function TTOTP.GetCurrentUnixTimestamp():Int64;
 begin
-  Result := DateTimeToUnix(TTimeZone.Local.ToUniversalTime(Now)) div TOTP.TimeStepWindow;
+  Result := DateTimeToUnix(TTimeZone.Local.ToUniversalTime(Now)) div TTOTP.TimeStepWindow;
 end;
 
 
 // https://datatracker.ietf.org/doc/html/rfc6238
-class function TOTP.GeneratePinNumber(const pBase32EncodedSecretKey:string; const pOutputLength:TOTPLength = TOTPLength.SixDigits):integer;
+class function TTOTP.GeneratePassword(const pBase32EncodedSecretKey:string; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
 begin
-  Result := TOTP.GeneratePinNumber(pBase32EncodedSecretKey, GetCurrentUnixTimestamp, pOutputLength);
+  Result := TTOTP.GeneratePassword(pBase32EncodedSecretKey, GetCurrentUnixTimestamp, pOutputLength);
 end;
 
 
