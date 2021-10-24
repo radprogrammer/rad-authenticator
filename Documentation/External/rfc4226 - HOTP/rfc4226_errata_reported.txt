@@ -1,0 +1,204 @@
+RFC 4226, "HOTP: An HMAC-Based One-Time Password Algorithm", December 2005
+Source of RFC: IETF - NON WORKING GROUP
+Area Assignment: sec
+Errata ID: 4994
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Mathias Tausig
+Date Reported: 2017-04-14
+Section 7.2 says:
+
+The HOTP client (hardware or software token) increments its counter
+and then calculates the next HOTP value HOTP client.  If the value
+received by the authentication server matches the value calculated by
+the client, then the HOTP value is validated.  In this case, the
+server increments the counter value by one.
+
+If the value received by the server does not match the value
+calculated by the client, the server initiate the resynch protocol
+(look-ahead window) before it requests another pass.
+It should say:
+
+The HOTP client (hardware or software token) increments its counter
+and then calculates the next HOTP value HOTP client.  If the value
+received by the authentication server matches the value calculated by
+the server, then the HOTP value is validated.  In this case, the
+server increments the counter value by one.
+
+If the value received by the server does not match the value
+calculated by the server, the server initiate the resynch protocol
+(look-ahead window) before it requests another pass.
+Notes:
+
+The OTP value received by the server is the one calculated by the client.
+
+
+
+Errata ID: 5129
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Gerrit Jansen van Vuuren
+Date Reported: 2017-09-27
+Section Appendix D says:
+
+Count    Hexadecimal    Decimal        HOTP
+   0        4c93cf18       1284755224     755224
+   1        41397eea       1094287082     287082
+   2         82fef30        137359152     359152
+   3        66ef7655       1726969429     969429
+   4        61c5938a       1640338314     338314
+   5        33c083d4        868254676     254676
+   6        7256c032       1918287922     287922
+   7         4e5b397         82162583     162583
+   8        2823443f        673399871     399871
+   9        2679dc69        645520489     520489
+
+
+It should say:
+
+Count     Hexadecimal    Decimal        HOTP
+   0         4c93cf18      1284755224    755224
+   1         75a48a19      1973717529    717529
+   2         bacb7fa       195868666     868666
+   3         66c28227      1724023335    023335
+   4         2904c900      688179456     179456
+   5         237e783d      595490877     490877
+   6         3c9cd285      1016910469    910469
+   7         24fb960c      620467724     467724
+   8         1b3c89f6      456952310     952310
+   9         16374098      372719768     719768
+
+Notes:
+
+From https://www.ietf.org/rfc/rfc4226.txt, Appendix D, page 31
+
+a. There is no mention of the parameters that were used to run the reference implementation to provide to test data. These should be:
+
+codeDigits: 6, addCheckSum: false, truncationOffset: 0.
+
+b. The hashes correspond. And the first row of Table2 (i.e for Count==0) correspond, but for Count 1...9 the values for Hex, Decimal and Hotp do not correspond with the values of the reference implementation.
+
+I am using JDK 1.8.0_144
+
+As a test I have done a copy and paste 'as is' from the reference implementation and run it with sysout statements to print the truncation and otp values for each counter.
+
+The only changes made are: System.out and use of counter=movingFactor to print the movingFactor. None of which alter the logic. Note the differences in test data were found before adding the debug info.
+
+Please see:
+https://github.com/gerritjvv/cryptoplayground/tree/master/hmac/java/hmac/src/test/java/org/funsec/hmac
+
+UnitTest method:
+https://github.com/gerritjvv/cryptoplayground/blob/master/hmac/java/hmac/src/test/java/org/funsec/hmac/HTOPTest.java#L83
+
+Reference Impl:
+https://github.com/gerritjvv/cryptoplayground/blob/master/hmac/java/hmac/src/test/java/org/funsec/hmac/HOTPRef.java
+
+
+
+Errata ID: 5130
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Gerrit Jansen van Vuuren
+Date Reported: 2017-09-27
+Section Appendix C says:
+
+ static public String generateOTP(byte[] secret,
+                  long movingFactor,
+             int codeDigits,
+                  boolean addChecksum,
+             int truncationOffset)
+           throws NoSuchAlgorithmException, InvalidKeyException
+       {
+           // put movingFactor value into text byte array
+     String result = null;
+     int digits = addChecksum ? (codeDigits + 1) : codeDigits;
+           byte[] text = new byte[8];
+           for (int i = text.length - 1; i >= 0; i--) {
+               text[i] = (byte) (movingFactor & 0xff);
+               movingFactor >>= 8;
+           }
+It should say:
+
+ static public String generateOTP(byte[] secret,
+                  long movingFactor,
+             int codeDigits,
+                  boolean addChecksum,
+             int truncationOffset)
+           throws NoSuchAlgorithmException, InvalidKeyException
+       {
+           // put movingFactor value into text byte array
+     String result = null;
+     long count = movingFactor;
+     int digits = addChecksum ? (codeDigits + 1) : codeDigits;
+           byte[] text = new byte[8];
+           for (int i = text.length - 1; i >= 0; i--) {
+               text[i] = (byte) (count & 0xff);
+               count >>= 8;
+           }
+Notes:
+
+method parameters like movingFactor should not be edited or changed in the method logic. This may lead to misunderstanding and bugs when the code is ported to other platforms and or re-implemented. Here movingFactor would be expected to stay constant and can be reused, but the original implementation updates the value to 0, which means any extra logic or updates (even debug statements) would always see movingFactor == 0 no matter what.
+
+
+
+Errata ID: 6702
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Darian Miller
+Date Reported: 2021-10-03
+Section 5.2 says:
+
+The Key (K), the Counter (C), and Data values are hashed high-order byte first.
+It should say:
+
+When hashing, the Key (K) value is provided in little-endian format while the Counter (C) value is in big-endian format.
+Notes:
+
+This byte reversal for the Counter (movingFactor) value is indeed demonstrated in the RFC's reference implementation code within Appendix C but this fact is not mentioned within RFC text body.
+
+byte[] text = new byte[8];
+for (int i = text.length - 1; i >= 0; i--) {
+text[i] = (byte) (movingFactor & 0xff);
+movingFactor >>= 8;
+}
+
+
+This specific issue is called out in a related wikipedia article:
+https://en.wikipedia.org/wiki/HMAC-based_one-time_password: "counter must be big endian"
+
+
+This can also be verified by looking at archived source of Google Authenticator on GitHub: https://github.com/google/google-authenticator/blob/51781910ae2bb1abf8ac51b290272f86f3651235/mobile/ios/Classes/OTPGenerator.m
+
+Related code snippet:
+(counter = NSSwapHostLongLongToBig(counter);)
+
+
+FreeOTP also reverses the byte order of the counter
+https://github.com/freeotp/freeotp-android/blob/eb2f12f33a38235433fd83e0ad3eb15affae871f/app/src/main/java/org/fedorahosted/freeotp/Token.java
+
+code comment "// Encode counter in network byte order"
+The code uses a Byte buffer which defaults to big_endian order.
+
+
+
+Errata ID: 5723
+Status: Reported
+Type: Editorial
+Publication Format(s) : TEXT
+Reported By: Adam Sorini
+Date Reported: 2019-05-18
+Section 7.2 says:
+
+The HOTP client (hardware or software token) increments its counter
+and then calculates the next HOTP value HOTP client.
+It should say:
+
+The HOTP client (hardware or software token) increments its counter
+and then calculates the next HOTP value.
+Notes:
+
+Stray "HOTP client" at the end of the sentence (for no reason).

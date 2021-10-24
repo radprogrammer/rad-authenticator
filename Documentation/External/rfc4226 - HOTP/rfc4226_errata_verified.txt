@@ -1,0 +1,57 @@
+RFC 4226, "HOTP: An HMAC-Based One-Time Password Algorithm", December 2005
+Source of RFC: IETF - NON WORKING GROUP
+Area Assignment: sec
+Errata ID: 163
+Status: Verified
+Type: Editorial
+Publication Format(s) : TEXT
+Reported By: M'Raihi, David
+Date Reported: 2005-12-26
+Section 9 says:
+
+   Oracle AuthO()
+   --------------
+      A = ALG(K,C)
+      C = C + 1
+      Return O to B
+It should say:
+
+   Oracle AuthO()
+   --------------
+      A = ALG(K,C)
+      C = C + 1
+      Return A to B
+             ^^
+Notes:
+
+
+Section A.4.1, Paragraph 3, Lemma 1 definition, top of page 19
+
+The description of Lemma 1 defines P_ {N,m} (z) using the term Z_ {n}
+and it should actually be Z_ {N}.
+P_{N,m}(z) = Pr [x mod m = z : x randomly pick in Z_{n}]
+Should be:
+P_{N,m}(z) = Pr [x mod m = z : x randomly pick in Z_{N}]
+^^^
+
+Section E.2, Paragraph 4, bottom of page 32
+32^8 > 10^12 so the security of an 8-alphanumeric HOTP code is
+significantly better than a 9-digit HOTP value.
+Should be:
+32^8 > 10^12 so the security of an 8-alphanumeric HOTP code is
+significantly better than a 12-digit HOTP value.
+^^
+
+In Author's Addresses, Page 35, David Naccache's contact information should be:
+
+David Naccache
+ENS, DI
+45 rue d'Ulm
+75005 Paris, France
+and
+Information Security Group,
+Royal Holloway,
+University of London, Egham,
+Surrey TW20 0EX, UK
+
+EMail: david.naccache@ens.fr, david.naccache@rhul.ac.uk
