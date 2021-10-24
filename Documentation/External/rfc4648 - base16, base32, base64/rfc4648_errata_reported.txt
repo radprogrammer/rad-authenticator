@@ -1,0 +1,56 @@
+RFC 4648, "The Base16, Base32, and Base64 Data Encodings", October 2006
+Source of RFC: IETF - NON WORKING GROUP
+Area Assignment: app
+Errata ID: 4889
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Umberto Rustichelli
+Date Reported: 2016-12-14
+Section 6 says:
+
+When fewer than 40 input bits
+are available in an input group, bits with value zero are added (on
+the right) to form an integral number of 5-bit groups.
+It should say:
+
+When fewer than 40 input bits
+are available in an input group, bits with value zero are added (on
+the right) to form an integral number of 8-bit groups.
+Notes:
+
+8-bit instead of 5-bit.
+What follows the correction clearly shows that the final input group must be 8, 16, 24, 32 or 40 bit long, that is, a multiple of 8, not of 5.
+Also examples of commonly-used Base32 encoders/decoders seem to show this behaviour.
+Also, I would not say "When fewer than 40 input bits are available in an input group" but rather "When fewer than 40 input bits are available in the final input group", to better clarify and not to change the subject ambiguously, unless this is intentionally applicable to any input lot.
+
+
+
+Errata ID: 5855
+Status: Reported
+Type: Editorial
+Publication Format(s) : TEXT
+Reported By: Daniel Barclay
+Date Reported: 2019-09-06
+Section 10. says:
+
+10.  Test Vectors
+
+   BASE64("") = ""
+
+   BASE64("f") = "Zg=="
+
+   ...
+Notes:
+
+TL;DR: Test Vectors section should specify the character encoding (ASCII/UTF-8) of the _character_ sequences used to represent input-data _octet_ sequences.
+
+The input to a Base 64/-32/-16 encoding operation is sequence of _octets_.
+
+However, the test vector expressions use sequences of _characters_ to represent input _octet_ sequences.
+
+That's a type mismatch (characters where octets are needed), and although it's pretty obvious that the strings were meant to represent octet sequences, there's no mention the the intended character encoding isn't, say, EBCDIC.
+
+Some possible fixes:
+1) The text should specify the character encoding (ASCII/UTF-8) to be used to interpret the character sequences as input octet sequences.
+2) The input octet sequences should be represented with a more direct (encoding-independent) representation of octets (e.g., "0x48, 0x69".).

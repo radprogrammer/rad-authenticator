@@ -1,0 +1,23 @@
+RFC 4648, "The Base16, Base32, and Base64 Data Encodings", October 2006
+Source of RFC: IETF - NON WORKING GROUP
+Area Assignment: app
+Errata ID: 2837
+Status: Verified
+Type: Editorial
+Publication Format(s) : TEXT
+Reported By: Frank Ellermann
+Date Reported: 2011-06-15
+Verifier Name: Peter Saint-Andre
+Date Verified: 2011-06-16
+Section 16.2 says:
+
+http://zgp.org/pipermail/p2p-hackers/2001-September/000315.html
+It should say:
+
+http://zgp.org/pipermail/p2p-hackers/2001-September/000316.html
+Notes:
+
+The same "off by one" issue was already present in RFC 3548 (obsoleted by RFC 4648). The archived article 315 has another author. Articles 316 and 319 are from the author noted in the RFCs, belong to a discussion of "web-safe base64" formats (incl. hex. + base32 alternatives), and specify the relevant base64 modification:
+
+316 is shorter than 319, and nearer to the erroneous 315, so that was likely the intended article.
+
