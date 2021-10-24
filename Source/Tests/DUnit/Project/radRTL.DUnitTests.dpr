@@ -31,5 +31,12 @@ begin
 
   DUnitTestRunner.RunRegisteredTests;
 
+  if IsConsole and (DebugHook <> 0) then
+  begin
+    //Allow developer to view console results within the IDE
+    writeln('Hit any key to exit');
+    readln;
+  end;
+
 end.
 
