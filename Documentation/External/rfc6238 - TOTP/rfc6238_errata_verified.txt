@@ -1,0 +1,48 @@
+RFC 6238, "TOTP: Time-Based One-Time Password Algorithm", May 2011
+Source of RFC: IETF - NON WORKING GROUP
+Area Assignment: sec
+Errata ID: 2866
+Status: Verified
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Michal Altair Valasek
+Date Reported: 2011-07-20
+Verifier Name: Sean Turner
+Date Verified: 2011-11-12
+Appendix B says
+
+The test token shared secret uses the ASCII string value
+"12345678901234567890".
+It should say:
+
+The test token shared secrets use the following ASCII string values:
+- HMAC-SHA1: "12345678901234567890" (20 bytes)
+- HMAC-SHA256: "12345678901234567890123456789012" (32 bytes)
+- HMAC-SHA512:
+  "1234567890123456789012345678901234567890123456789012345678901234" (64 bytes)
+Notes:
+
+The secret values are different for different hash types. The example Java code respects this, but the test vector documentation does not.
+
+
+Errata ID: 4678
+Status: Verified
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Osric Wilkinson
+Date Reported: 2016-04-27
+Verifier Name: Stephen Farrell
+Date Verified: 2016-04-30
+Section Appendix A says:
+
+* @return: a numeric String in base 10 that includes
+*              {@link truncationDigits} digits
+It should say:
+
+* @return: a numeric String in base 10 that includes
+*              {@link DIGITS_POWER} digits
+Notes:
+
+The JavaDoc for the functions refers to truncationDigits, which doesn't exist in the example code. I think the authors mean the DIGITS_POWER array.
+
+Note that this happens four times for the four different versions of the generateTOTP() method.

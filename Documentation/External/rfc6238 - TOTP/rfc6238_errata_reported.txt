@@ -1,0 +1,93 @@
+RFC 6238, "TOTP: Time-Based One-Time Password Algorithm", May 2011
+Source of RFC: IETF - NON WORKING GROUP
+Area Assignment: sec
+Errata ID: 4249
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: David Woodhouse
+Date Reported: 2015-01-30
+Section 4.2 says:
+
+The provisioning flow is out of scope of this document; refer to
+[RFC6030] for such provisioning container specifications.
+Notes:
+
+It's insufficient to simply refer to RFC6030 here. See RFC6030 §4.3.4 where it states that the precise semantics of fields such as the <Suite> element are defined according to the algorithm profile. It does provide in §10 the definitions for HOTP and PIN algorithms — but it doesn't give them for TOTP because the standardisation of TOTP came later.
+
+So *someone* needs to tell us what strings to put in the <Suite> element to indicate SHA1/SHA256/SHA512 etc. Either an update to RFC6030, or I would have thought it was better done with a section in RFC6238... which is missing.
+
+Am I missing something?
+
+
+
+Errata ID: 4530
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Simone Campagna
+Date Reported: 2015-11-11
+Section Appendix A says:
+
+ public static String generateTOTP(String key,
+             String time,
+             String returnDigits){
+         return generateTOTP(key, time, returnDigits, "HmacSHA1");
+     }
+Notes:
+
+Function will be recursive on his self. Maybe forget a second condition or statement?
+
+
+
+Errata ID: 5132
+Status: Reported
+Type: Technical
+Publication Format(s) : TEXT
+Reported By: Gerrit Jansen van Vuuren
+Date Reported: 2017-09-28
+Section Appendix B says:
+
+The test token shared secret uses the ASCII string value
+   "12345678901234567890"
+It should say:
+
+The test token used for each SHA mode is:
+// Seed for HMAC-SHA1 - 20 bytes
+         String seed = "3132333435363738393031323334353637383930";
+         // Seed for HMAC-SHA256 - 32 bytes
+         String seed32 = "3132333435363738393031323334353637383930" +
+         "313233343536373839303132";
+         // Seed for HMAC-SHA512 - 64 bytes
+         String seed64 = "3132333435363738393031323334353637383930" +
+         "3132333435363738393031323334353637383930" +
+         "3132333435363738393031323334353637383930" +
+         "31323334";
+Notes:
+
+The text suggests that the secret "12345678901234567890" is used, when in fact this value cannot be found in the reference implementation test generation code and leads to different values (as is expected). The actual secret used is called seed, seed32 and seed64 in the reference implementation test generation code.
+
+
+
+Errata ID: 4881
+Status: Reported
+Type: Editorial
+Publication Format(s) : TEXT
+Reported By: Malte Simon
+Date Reported: 2016-12-07
+Section 8.2 says:
+
+   [CN]       Coron, J. and D. Naccache, "An Accurate Evaluation of
+              Maurer's Universal Test", LNCS 1556, February 1999,
+              <http://www.gemplus.com/smart/rd/publications/pdf/
+              CN99maur.pdf>.
+It should say:
+
+   [CN]       Coron, J. and D. Naccache, "An Accurate Evaluation of
+              Maurer's Universal Test", Selected Areas in Cryptography: 
+              SAC 1998, Lecture Notes in Computer Science Vol. 1556, 
+              pp. 57-71, DOI: 10.1007/3-540-48892-8_5, February 1999,
+              <http://www.jscoron.fr/publications/universal.pdf>.
+Notes:
+
+Gemplus (today Gemalto) no longer provide thie linked research paper.
