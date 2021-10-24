@@ -16,6 +16,8 @@ type
     procedure TestDecodingRFCVectors;
     procedure TestDecoding_SkippedCharacters;
     procedure TestLongerInput_LoremIpsum;
+    procedure TestEncodingDelphi;
+    procedure TestDecodingDelphi;
   end;
 
 
@@ -81,6 +83,17 @@ begin
   CheckEquals(LOREM_TEXT, TBase32.Decode(LOREM_BASE32+'L'));
   //note: two extra bytes should fail...
   CheckNotEquals(LOREM_TEXT, TBase32.Decode(LOREM_BASE32+'LL'));
+end;
+
+
+procedure TBase32Test.TestEncodingDelphi;
+begin
+  CheckEquals('IRSWY4DINE======', TBase32.Encode('Delphi'));
+end;
+
+procedure TBase32Test.TestDecodingDelphi;
+begin
+  CheckEquals('Delphi', TBase32.Decode('IRSWY4DINE======'));
 end;
 
 
