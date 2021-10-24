@@ -26,7 +26,6 @@ var
 
 implementation
 uses
-  radRTL.HOTP,
   radRTL.TOTP;
 
 

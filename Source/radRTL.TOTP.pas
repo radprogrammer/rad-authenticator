@@ -27,9 +27,7 @@ type
 implementation
 
 uses
-  System.DateUtils,
-  radRTL.Base32Encoding,
-  radRTL.ByteArrayUtils;
+  System.DateUtils;
 
 
 class function TTOTP.GetCurrentUnixTimestamp():Int64;
