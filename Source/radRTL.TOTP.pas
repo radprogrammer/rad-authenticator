@@ -39,7 +39,7 @@ end;
 // https://datatracker.ietf.org/doc/html/rfc6238
 class function TTOTP.GeneratePassword(const pBase32EncodedSecretKey:string; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
 begin
-  Result := TTOTP.GeneratePassword(pBase32EncodedSecretKey, GetCurrentUnixTimestamp, pOutputLength);
+  Result := THOTP.GeneratePassword(pBase32EncodedSecretKey, GetCurrentUnixTimestamp, pOutputLength);
 end;
 
 
