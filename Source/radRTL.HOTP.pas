@@ -24,7 +24,8 @@ type
     RFCMinimumKeyLengthBytes = 16; // length of shared secret MUST be 128 bits (16 bytes)
   public
     /// <summary> HOTP: HMAC-Based One-Time Password Algorithm</summary>
-    class function GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
+    class function GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string; overload;
+    class function GeneratePassword(const pPlainTextSecretKey:TBytes; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string; overload;
   end;
 
 
@@ -40,27 +41,34 @@ uses
   radRTL.ByteArrayUtils;
 
 
-// https://datatracker.ietf.org/doc/html/rfc4226
 class function THOTP.GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
-
 var
   vEncodedKey:TBytes;
   vDecodedKey:TBytes;
+begin
+  vEncodedKey := TEncoding.UTF8.GetBytes(pBase32EncodedSecretKey); // assume secret was stored as UTF8  (prover and verifier must match)
+  vDecodedKey := TBase32.Decode(vEncodedKey);
+
+  Result := GeneratePassword(vDecodedKey, pCounterValue, pOutputLength);
+end;
+
+
+// https://datatracker.ietf.org/doc/html/rfc4226
+class function THOTP.GeneratePassword(const pPlainTextSecretKey:TBytes; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
+var
   vData:TBytes;
   vHMAC:TBytes;
   vOffset:integer;
   vBinCode:integer;
   vPinNumber:integer;
 begin
-  vEncodedKey := TEncoding.UTF8.GetBytes(pBase32EncodedSecretKey); // assume secret was stored as UTF8  (prover and verifier must match)
-  if Length(vEncodedKey) < RFCMinimumKeyLengthBytes then
+  if Length(pPlainTextSecretKey) < RFCMinimumKeyLengthBytes then
   begin
     // RFC minimum length required  (Note: did not see this limitation in other implementations)
     raise EOTPException.CreateRes(@sOTPKeyLengthTooShort);
   end;
-  vDecodedKey := TBase32.Decode(vEncodedKey);
   vData := ReverseByteArray(ConvertToByteArray(pCounterValue)); // RFC reference implmentation reversed order of CounterValue (movingFactor) bytes
-  vHMAC := THashSHA1.GetHMACAsBytes(vData, vDecodedKey); // SHA1 = 20 byte digest
+  vHMAC := THashSHA1.GetHMACAsBytes(vData, pPlainTextSecretKey); // SHA1 = 20 byte digest
 
   // rfc notes: extract a 4-byte dynamic binary integer code from the HMAC result
   vOffset := vHMAC[19] and $0F; // extract a random number 0 to 15 (from the value of the very last byte of the hash digest AND 0000-1111)
