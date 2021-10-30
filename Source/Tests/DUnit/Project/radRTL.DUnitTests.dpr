@@ -15,7 +15,11 @@ program radRTL.DUnitTests;
 {$ENDIF}
 
 uses
+  {$IFDEF TESTINSIGHT}
+  TestInsight.DUnit,
+  {$ELSE}
   DUnitTestRunner,
+  {$ENDIF}
   radRTL.Base32Encoding in '..\..\..\radRTL.Base32Encoding.pas',
   radRTL.Base32Encoding.Tests in '..\radRTL.Base32Encoding.Tests.pas',
   radRTL.BitUtils in '..\..\..\radRTL.BitUtils.pas',
@@ -31,15 +35,26 @@ uses
 
 begin
 
-  DUnitTestRunner.RunRegisteredTests;
+  {$IFDEF TESTINSIGHT}  //TestInsight IDE Plugin enabled
 
-  {$IFDEF WINDOWS}
-  if IsConsole and (DebugHook <> 0) then
-  begin
-    //Allow developer to view console results within the IDE
-    writeln('Hit any key to exit');
-    readln;
-  end;
+    TestInsight.DUnit.RunRegisteredTests;
+
+  {$ELSE}  //Standard DUnit tests (typically from an automated build process)
+
+    DUnitTestRunner.RunRegisteredTests;
+
+    if IsConsole then
+    begin
+      {$WARN SYMBOL_PLATFORM OFF}
+      if DebugHook <> 0 then //Running within the IDE
+      begin
+        // Allow developer to view console results (F9)
+        Writeln('Hit any key to exit');
+        Readln;
+      end;
+      {$WARN SYMBOL_PLATFORM ON}
+    end;
+
   {$ENDIF}
 
 end.

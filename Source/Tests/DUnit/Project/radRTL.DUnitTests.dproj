@@ -42,7 +42,7 @@
     <PropertyGroup Condition="'$(Base)'!=''">
         <SanitizedProjectName>radRTL_DUnitTests</SanitizedProjectName>
         <DCC_DcuOutput>.</DCC_DcuOutput>
-        <DCC_Define>_CONSOLE_TESTRUNNER;$(DCC_Define)</DCC_Define>
+        <DCC_Define>NO_CONSOLE_TESTRUNNER;NO_TESTINSIGHT;$(DCC_Define)</DCC_Define>
         <DCC_ExeOutput>.\$(Platform)\$(Config)</DCC_ExeOutput>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
         <DCC_UnitSearchPath>$(BDS)\Source\DUnit\src;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
