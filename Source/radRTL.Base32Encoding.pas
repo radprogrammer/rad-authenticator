@@ -12,8 +12,41 @@ type
 
   TBase32 = class
   public const
-    Dictionary:AnsiString = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; // 32 characters, max Base2 of 5 digits '11111' (Base32 encoding uses 5-bit groups)
-    PadCharacter:Integer = 61; // Ord('=');
+    // 32 characters, 5 Base2 digits '11111' supports complete dictionary (Base32 encoding uses 5-bit groups)
+    Dictionary: array[0..31] of byte = (Byte('A'),
+                                        Byte('B'),
+                                        Byte('C'),
+                                        Byte('D'),
+                                        Byte('E'),
+                                        Byte('F'),
+                                        Byte('G'),
+                                        Byte('H'),
+                                        Byte('I'),
+                                        Byte('J'),
+                                        Byte('K'),
+                                        Byte('L'),
+                                        Byte('M'),
+                                        Byte('N'),
+                                        Byte('O'),
+                                        Byte('P'),
+                                        Byte('Q'),
+                                        Byte('R'),
+                                        Byte('S'),
+                                        Byte('T'),
+                                        Byte('U'),
+                                        Byte('V'),
+                                        Byte('W'),
+                                        Byte('X'),
+                                        Byte('Y'),
+                                        Byte('Z'),
+                                        Byte('2'),
+                                        Byte('3'),
+                                        Byte('4'),
+                                        Byte('5'),
+                                        Byte('6'),
+                                        Byte('7'));
+
+    PadCharacter:Byte = Byte('=');  //Ord is 61
   public
     class function Encode(const pPlainText:string):string; overload;
     class function Encode(const pPlainText:TBytes):TBytes; overload;
@@ -98,7 +131,7 @@ begin
       vDictionaryIndex := $1F and (vBuffer shr (vBitsInBuffer - 5)); // $1F mask = 00011111  (last 5 are 1)
       vBitsInBuffer := vBitsInBuffer - 5;
       vBuffer := ExtractLastBits(vBuffer, vBitsInBuffer); // zero out bits we just mapped
-      Result[vResultPosition] := Ord(TBase32.Dictionary[vDictionaryIndex + 1]);
+      Result[vResultPosition] := TBase32.Dictionary[vDictionaryIndex];
       vResultPosition := vResultPosition + 1;
     end;
 
@@ -153,9 +186,9 @@ var
   vBuffer:Integer;
   vBitsInBuffer:Integer;
   vDictionaryIndex:Integer;
-  vBase32Char:AnsiChar;
   vSourcePosition:Integer;
   vResultPosition:Integer;
+  i:Integer;
 begin
   SetLength(Result, 0);
 
@@ -169,10 +202,18 @@ begin
     vResultPosition := 0;
 
     repeat
-      vBase32Char := AnsiChar(PByteArray(pCipherText)[vSourcePosition]);
 
-      vDictionaryIndex := Pos(vBase32Char, TBase32.Dictionary); // todo: support case insensitive decoding?
-      if vDictionaryIndex = 0 then
+      vDictionaryIndex := -1;
+      for i := Low(TBase32.Dictionary) to High(TBase32.Dictionary) do
+      begin
+        // todo: support case insensitive decoding?
+        if TBase32.Dictionary[i] = PByteArray(pCipherText)[vSourcePosition] then
+        begin
+          vDictionaryIndex := i;
+          Break;
+        end;
+      end;
+      if vDictionaryIndex = -1 then
       begin
         // todo: Consider failing on invalid characters with Exit(EmptyStr) or Exception
         // For now, just skip all invalid characters.
@@ -181,7 +222,6 @@ begin
         vSourcePosition := vSourcePosition + 1;
         Continue;
       end;
-      vDictionaryIndex := vDictionaryIndex - 1; // POS result is 1-based
 
       vBuffer := vBuffer shl 5; // Expand buffer to add next 5-bit group
       vBuffer := vBuffer or vDictionaryIndex; // combine the last bits collected and the next 5-bit group (Note to self: No mask needed on OR index as its known to be within range due to fixed dictionary size)
