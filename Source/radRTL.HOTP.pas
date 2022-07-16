@@ -10,9 +10,7 @@ uses
 
 type
 
-  {$IFDEF STRICT_RFC_4226}
   EOTPException = class(Exception);
-  {$ENDIF}
 
 
   // "Password generated must be at least 6, but can be 7 or 8" digits in length (simply changes the MOD operation) (9-digit addition suggested in errata: https://www.rfc-editor.org/errata/eid2400)
@@ -23,9 +21,9 @@ type
   private const
     ModTable: array [0 .. 2] of integer = (1000000, 10000000, 100000000); // 6,7,8 zeros matching OTP Length
     FormatTable: array [0 .. 2] of string = ('%.6d', '%.7d', '%.8d'); // 6,7,8 string length (padded left with zeros)
-    {$IFDEF STRICT_RFC_4226}
     RFCMinimumKeyLengthBytes = 16; // "The length of shared secret MUST be at least 128 bits. This document RECOMMENDs a shared secret length of 160 bits."
-    {$ENDIF}
+  public class var
+    EnforceMinimumKeyLength:Boolean;
   public
     /// <summary> HOTP: HMAC-Based One-Time Password Algorithm</summary>
     class function GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string; overload;
@@ -33,10 +31,8 @@ type
   end;
 
 
-{$IFDEF STRICT_RFC_4226}
 resourcestring
   sOTPKeyLengthTooShort = 'Key length must be at least 128bits';
-{$ENDIF}
 
 
 implementation
@@ -68,13 +64,11 @@ var
   vBinCode:integer;
   vPinNumber:integer;
 begin
-  {$IFDEF STRICT_RFC_4226}
-  if Length(pPlainTextSecretKey) < RFCMinimumKeyLengthBytes then
+  if EnforceMinimumKeyLength and (Length(pPlainTextSecretKey) < RFCMinimumKeyLengthBytes) then
   begin
     // RFC minimum length required  (Note: did not see this limitation in other implementations)
     raise EOTPException.CreateRes(@sOTPKeyLengthTooShort);
   end;
-  {$ENDIF}
   vData := ReverseByteArray(ConvertToByteArray(pCounterValue)); // RFC reference implmentation reversed order of CounterValue (movingFactor) bytes
   vHMAC := THashSHA1.GetHMACAsBytes(vData, pPlainTextSecretKey); // SHA1 = 20 byte digest
 
