@@ -49,10 +49,12 @@ type
     PadCharacter:Byte = Byte('=');  //Ord is 61
   public
     class function Encode(const pPlainText:string):string; overload;
+    class function Encode(const pPlainText:string; const pEncoding:TEncoding):string; overload;
     class function Encode(const pPlainText:TBytes):TBytes; overload;
     class function Encode(const pPlainText:Pointer; const pDataLength:Integer):TBytes; overload;
 
     class function Decode(const pCipherText:string):string; overload;
+    class function Decode(const pCipherText:string; const pEncoding:TEncoding):string; overload;
     class function Decode(const pCipherText:TBytes):TBytes; overload;
     class function Decode(const pCipherText:Pointer; const pDataLength:Integer):TBytes; overload;
   end;
@@ -67,7 +69,12 @@ uses
 class function TBase32.Encode(const pPlainText:string):string;
 begin
   // always encode UTF8 by default to match most implementations in the wild
-  Result := TEncoding.UTF8.GetString(Encode(TEncoding.UTF8.GetBytes(pPlainText)));
+  Result := TBase32.Encode(pPlainText, TEncoding.UTF8);
+end;
+
+class function TBase32.Encode(const pPlainText:string; const pEncoding:TEncoding):string;
+begin
+  Result := pEncoding.GetString(Encode(pEncoding.GetBytes(pPlainText)));
 end;
 
 
@@ -162,8 +169,13 @@ end;
 
 class function TBase32.Decode(const pCipherText:string):string;
 begin
-  // always decode UTF8 by default to match most implementations in the wild
-  Result := TEncoding.UTF8.GetString(Decode(TEncoding.UTF8.GetBytes(pCipherText)));
+  // Default to UTF8 to match most implementations in the wild
+  Result := TBase32.Decode(pCipherText, TEncoding.UTF8);
+end;
+
+class function TBase32.Decode(const pCipherText:string; const pEncoding:TEncoding):string;
+begin
+  Result := pEncoding.GetString(Decode(pEncoding.GetBytes(pCipherText)));
 end;
 
 
