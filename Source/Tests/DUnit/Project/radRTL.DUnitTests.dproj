@@ -42,7 +42,7 @@
     <PropertyGroup Condition="'$(Base)'!=''">
         <SanitizedProjectName>radRTL_DUnitTests</SanitizedProjectName>
         <DCC_DcuOutput>.</DCC_DcuOutput>
-        <DCC_Define>NO_CONSOLE_TESTRUNNER;NO_TESTINSIGHT;$(DCC_Define)</DCC_Define>
+        <DCC_Define>NO_CONSOLE_TESTRUNNER;TESTINSIGHT;$(DCC_Define)</DCC_Define>
         <DCC_ExeOutput>.\$(Platform)\$(Config)</DCC_ExeOutput>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
         <DCC_UnitSearchPath>$(BDS)\Source\DUnit\src;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
@@ -91,6 +91,7 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
+        <DCCReference Include="..\..\radRTL.UnitTestRunner.pas"/>
         <DCCReference Include="..\..\..\radRTL.Base32Encoding.pas"/>
         <DCCReference Include="..\radRTL.Base32Encoding.Tests.pas"/>
         <DCCReference Include="..\..\..\radRTL.BitUtils.pas"/>
@@ -124,14 +125,9 @@
                 <Excluded_Packages/>
             </Delphi.Personality>
             <Platforms>
-                <Platform value="Android">False</Platform>
-                <Platform value="Android64">False</Platform>
                 <Platform value="Linux64">False</Platform>
-                <Platform value="OSX64">False</Platform>
-                <Platform value="OSXARM64">False</Platform>
                 <Platform value="Win32">True</Platform>
                 <Platform value="Win64">True</Platform>
-                <Platform value="iOSDevice64">False</Platform>
             </Platforms>
             <UnitTesting>
                 <TestFramework>DUnit / Delphi Win32</TestFramework>

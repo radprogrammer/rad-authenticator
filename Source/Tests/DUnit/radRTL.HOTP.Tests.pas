@@ -86,6 +86,7 @@ procedure THOTPTest.TestMinimumKeyLengthIgnoredByDefault;
 begin
   THOTP.EnforceMinimumKeyLength := False;
   THOTP.GeneratePassword(INVALID_KEY, 0);  //should not generate an exception event though we are using a short key
+  FailsOnNoChecksExecuted := False;
 end;
 
 procedure THOTPTest.TestMinimumKeyLengthException;
