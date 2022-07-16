@@ -32,7 +32,7 @@ uses
 
 class function TTOTP.GetCurrentUnixTimestamp():Int64;
 begin
-  Result := DateTimeToUnix(TTimeZone.Local.ToUniversalTime(Now)) div TTOTP.TimeStepWindow;
+  Result := DateTimeToUnix(Now, {AInputIsUTC=}False) div TTOTP.TimeStepWindow;
 end;
 
 
