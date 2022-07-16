@@ -12,8 +12,12 @@ uses
 type
 
   THOTPTest = class(TTestCase)
+  public const
+    INVALID_KEY = 'KNEE6USU';   //'SHORT' base32 encoded
   published
     procedure TestRFCVectors;
+    procedure TestMinimumKeyLengthIgnoredByDefault;
+    procedure TestMinimumKeyLengthException;
   end;
 
 
@@ -75,6 +79,20 @@ begin
     CheckEquals(EXPECTED_VALUES[i], THOTP.GeneratePassword(SECRET_PLAINTEXT_BYTES, i));
     CheckEquals(EXPECTED_VALUES[i], THOTP.GeneratePassword(SECRET_BASE32_STRING, i));
   end;
+end;
+
+
+procedure THOTPTest.TestMinimumKeyLengthIgnoredByDefault;
+begin
+  THOTP.EnforceMinimumKeyLength := False;
+  THOTP.GeneratePassword(INVALID_KEY, 0);  //should not generate an exception event though we are using a short key
+end;
+
+procedure THOTPTest.TestMinimumKeyLengthException;
+begin
+  ExpectedException := EOTPException;
+  THOTP.EnforceMinimumKeyLength := True;
+  THOTP.GeneratePassword(INVALID_KEY, 0); //should toss EOTPException as key is less than 128-bits which is minimum required per RFC-4226
 end;
 
 
