@@ -56,7 +56,7 @@ end;
 procedure TBase32Test.TestDecoding_SkippedCharacters;
 begin
   //Unhandled characters are simply skipped in the current implementation
-  CheckEquals('', TBase32.Decode('=1890abcdefghijklmnopqrstuvwxyz,[]()~!@#$%^&*()_+'));
+  CheckEquals('', TBase32.Decode('=1890,[]()~!@#$%^&*()_+'));
 end;
 
 
