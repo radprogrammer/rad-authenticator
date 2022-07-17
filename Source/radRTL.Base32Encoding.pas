@@ -13,39 +13,36 @@ type
   TBase32 = class
   public const
     // 32 characters, 5 Base2 digits '11111' supports complete dictionary (Base32 encoding uses 5-bit groups)
-    Dictionary: array[0..31] of byte = (Byte('A'),
-                                        Byte('B'),
-                                        Byte('C'),
-                                        Byte('D'),
-                                        Byte('E'),
-                                        Byte('F'),
-                                        Byte('G'),
-                                        Byte('H'),
-                                        Byte('I'),
-                                        Byte('J'),
-                                        Byte('K'),
-                                        Byte('L'),
-                                        Byte('M'),
-                                        Byte('N'),
-                                        Byte('O'),
-                                        Byte('P'),
-                                        Byte('Q'),
-                                        Byte('R'),
-                                        Byte('S'),
-                                        Byte('T'),
-                                        Byte('U'),
-                                        Byte('V'),
-                                        Byte('W'),
-                                        Byte('X'),
-                                        Byte('Y'),
-                                        Byte('Z'),
-                                        Byte('2'),
-                                        Byte('3'),
-                                        Byte('4'),
-                                        Byte('5'),
-                                        Byte('6'),
-                                        Byte('7'));
-
+    CharactersUsedForEncoding = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    //map byte value to corresponding encoded character index value
+    //This allows for easy case-insensitive decoding ("B" is mapped to 1 and "b" is mapped to 1)
+    //Any invalid mapping is set to 255 and the character is skipped during the decoding process
+    DecodeValues: array[0..255] of byte = (255,255,255,255,255,255,255,255,255,255,  //#0-#9
+                                           255,255,255,255,255,255,255,255,255,255,  //#10-#19
+                                           255,255,255,255,255,255,255,255,255,255,  //#20-#29
+                                           255,255,255,255,255,255,255,255,255,255,  //#30-#39      !"#$%&'
+                                           255,255,255,255,255,255,255,255,255,255,  //#40-#49   ()*+,-./01
+                                            26, 27, 28, 29, 30, 31,255,255,255,255,  //#50-#59   23456789:;
+                                           255,255,255,255,255,  0,  1,  2,  3,  4,  //#60-#69   <=>?@ABCDE
+                                             5,  6,  7,  8,  9, 10, 11, 12, 13, 14,  //#70-#79   FGHIJKLMNO
+                                            15, 16, 17, 18, 19, 20, 21, 22, 23, 24,  //#80-#89   PQRSTUVWXY
+                                            25,255,255,255,255,255,255,  0,  1,  2,  //#90-#99   Z[\]^-.abc
+                                             3,  4,  5,  6,  7,  8,  9, 10, 11, 12,  //#100-#109 defghijklm
+                                            13, 14, 15, 16, 17, 18, 19, 20, 21, 22,  //#110-#119 nopqrstuvw
+                                            23, 24, 25,255,255,255,255,255,255,255,  //#120-#129 xyz{|}~
+                                           255,255,255,255,255,255,255,255,255,255,  //#130-#139
+                                           255,255,255,255,255,255,255,255,255,255,  //#140-#149
+                                           255,255,255,255,255,255,255,255,255,255,  //#150-#159
+                                           255,255,255,255,255,255,255,255,255,255,  //#160-#169
+                                           255,255,255,255,255,255,255,255,255,255,  //#170-#179
+                                           255,255,255,255,255,255,255,255,255,255,  //#180-#189
+                                           255,255,255,255,255,255,255,255,255,255,  //#190-#199
+                                           255,255,255,255,255,255,255,255,255,255,  //#200-#209
+                                           255,255,255,255,255,255,255,255,255,255,  //#210-#219
+                                           255,255,255,255,255,255,255,255,255,255,  //#220-#229
+                                           255,255,255,255,255,255,255,255,255,255,  //#230-#239
+                                           255,255,255,255,255,255,255,255,255,255,  //#240-#249
+                                           255,255,255,255,255,255);                 //#250-#255
     PadCharacter:Byte = Byte('=');  //Ord is 61
   public
     class function Encode(const pPlainText:string):string; overload;
@@ -138,7 +135,7 @@ begin
       vDictionaryIndex := $1F and (vBuffer shr (vBitsInBuffer - 5)); // $1F mask = 00011111  (last 5 are 1)
       vBitsInBuffer := vBitsInBuffer - 5;
       vBuffer := ExtractLastBits(vBuffer, vBitsInBuffer); // zero out bits we just mapped
-      Result[vResultPosition] := TBase32.Dictionary[vDictionaryIndex];
+      Result[vResultPosition] := Ord(TBase32.CharactersUsedForEncoding[vDictionaryIndex+1]);
       vResultPosition := vResultPosition + 1;
     end;
 
@@ -197,10 +194,9 @@ class function TBase32.Decode(const pCipherText:Pointer; const pDataLength:Integ
 var
   vBuffer:Integer;
   vBitsInBuffer:Integer;
-  vDictionaryIndex:Integer;
+  vDictionaryIndex:Byte;
   vSourcePosition:Integer;
   vResultPosition:Integer;
-  i:Integer;
 begin
   SetLength(Result, 0);
 
@@ -214,18 +210,8 @@ begin
     vResultPosition := 0;
 
     repeat
-
-      vDictionaryIndex := -1;
-      for i := Low(TBase32.Dictionary) to High(TBase32.Dictionary) do
-      begin
-        // todo: support case insensitive decoding?
-        if TBase32.Dictionary[i] = PByteArray(pCipherText)[vSourcePosition] then
-        begin
-          vDictionaryIndex := i;
-          Break;
-        end;
-      end;
-      if vDictionaryIndex = -1 then
+      vDictionaryIndex := DecodeValues[PByteArray(pCipherText)[vSourcePosition]];
+      if vDictionaryIndex = 255 then
       begin
         // todo: Consider failing on invalid characters with Exit(EmptyStr) or Exception
         // For now, just skip all invalid characters.
