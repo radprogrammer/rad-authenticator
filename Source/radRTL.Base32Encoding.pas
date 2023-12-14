@@ -9,7 +9,6 @@ uses
   System.SysUtils;
 
 type
-
   TBase32 = class
   public const
     // 32 characters, 5 Base2 digits '11111' supports complete dictionary (Base32 encoding uses 5-bit groups)
@@ -45,201 +44,182 @@ type
                                            255,255,255,255,255,255);                 //#250-#255
     PadCharacter:Byte = Byte('=');  //Ord is 61
   public
-    class function Encode(const pPlainText:string):string; overload;
-    class function Encode(const pPlainText:string; const pEncoding:TEncoding):string; overload;
-    class function Encode(const pPlainText:TBytes):TBytes; overload;
-    class function Encode(const pPlainText:Pointer; const pDataLength:Integer):TBytes; overload;
+    class function Encode(const pPlainText: string) :string; overload;
+    class function Encode(const pPlainText: string; const pEncoding: TEncoding): string; overload;
+    class function Encode(const pPlainText: TBytes): TBytes; overload;
+    class function Encode(const pPlainText: Pointer; const pDataLength: Integer): TBytes; overload;
 
-    class function Decode(const pCipherText:string):string; overload;
-    class function Decode(const pCipherText:string; const pEncoding:TEncoding):string; overload;
-    class function Decode(const pCipherText:TBytes):TBytes; overload;
-    class function Decode(const pCipherText:Pointer; const pDataLength:Integer):TBytes; overload;
+    class function Decode(const pCipherText: string): string; overload;
+    class function Decode(const pCipherText: string; const pEncoding: TEncoding): string; overload;
+    class function Decode(const pCipherText: TBytes): TBytes; overload;
+    class function Decode(const pCipherText: Pointer; const pDataLength:Integer): TBytes; overload;
   end;
-
 
 implementation
 
 uses
   radRTL.BitUtils;
 
-
-class function TBase32.Encode(const pPlainText:string):string;
+class function TBase32.Encode(const pPlainText: string): string;
 begin
   // always encode UTF8 by default to match most implementations in the wild
   Result := TBase32.Encode(pPlainText, TEncoding.UTF8);
 end;
 
-class function TBase32.Encode(const pPlainText:string; const pEncoding:TEncoding):string;
+class function TBase32.Encode(const pPlainText: string; const pEncoding: TEncoding): string;
 begin
   Result := pEncoding.GetString(Encode(pEncoding.GetBytes(pPlainText)));
 end;
 
-
-class function TBase32.Encode(const pPlainText:TBytes):TBytes;
+class function TBase32.Encode(const pPlainText: TBytes): TBytes;
 var
-  vInputLength:Integer;
+  vInputLength: Integer;
 begin
   SetLength(Result, 0);
 
   vInputLength := Length(pPlainText);
   if vInputLength > 0 then
-  begin
     Result := Encode(@pPlainText[0], vInputLength);
-  end;
 end;
 
-
-class function TBase32.Encode(const pPlainText:Pointer; const pDataLength:Integer):TBytes;
+class function TBase32.Encode(const pPlainText: Pointer; const pDataLength: Integer): TBytes;
 var
-  vBuffer:Integer;
-  vBitsInBuffer:Integer;
-  vDictionaryIndex:Integer;
-  vFinalPadBits:Integer;
-  vSourcePosition:Integer;
-  vResultPosition:Integer;
-  i:Integer;
-  vPadCharacters:Integer;
+  vBuffer: Integer;
+  vBitsInBuffer: Integer;
+  vDictionaryIndex: Integer;
+  vFinalPadBits: Integer;
+  vSourcePosition: Integer;
+  vResultPosition: Integer;
+  i: Integer;
+  vPadCharacters: Integer;
 begin
   SetLength(Result, 0);
 
-  if pDataLength > 0 then
+  if pDataLength <= 0 then
+    Exit;
+
+  // estimate max bytes to be used (excess trimmed below)
+  SetLength(Result, Trunc((pDataLength / 5) * 8) + 6 + 1); // 8 bytes out for every 5 in, +6 padding (at most), +1 for partial trailing bits if needed
+
+  vBuffer := PByteArray(pPlainText)[0];
+  vBitsInBuffer := 8;
+  vSourcePosition := 1;
+  vResultPosition := 0;
+
+  while ((vBitsInBuffer > 0) or (vSourcePosition < pDataLength)) do
   begin
-    // estimate max bytes to be used (excess trimmed below)
-    SetLength(Result, Trunc((pDataLength / 5) * 8) + 6 + 1); // 8 bytes out for every 5 in, +6 padding (at most), +1 for partial trailing bits if needed
-
-    vBuffer := PByteArray(pPlainText)[0];
-    vBitsInBuffer := 8;
-    vSourcePosition := 1;
-    vResultPosition := 0;
-
-    while ((vBitsInBuffer > 0) or (vSourcePosition < pDataLength)) do
+    if vBitsInBuffer < 5 then // fill buffer up to 5 bits at least for next (possibly final) character
     begin
-      if (vBitsInBuffer < 5) then // fill buffer up to 5 bits at least for next (possibly final) character
+      if vSourcePosition < pDataLength then
       begin
-        if (vSourcePosition < pDataLength) then
-        begin
-          // Combine the next byte with the unused bits of the last byte
-          vBuffer := (vBuffer shl 8) or PByteArray(pPlainText)[vSourcePosition];
-          vBitsInBuffer := vBitsInBuffer + 8;
-          vSourcePosition := vSourcePosition + 1;
-        end
-        else
-        begin
-          vFinalPadBits := 5 - vBitsInBuffer;
-          vBuffer := vBuffer shl vFinalPadBits;
-          vBitsInBuffer := vBitsInBuffer + vFinalPadBits;
-        end;
+        // Combine the next byte with the unused bits of the last byte
+        vBuffer := (vBuffer shl 8) or PByteArray(pPlainText)[vSourcePosition];
+        vBitsInBuffer := vBitsInBuffer + 8;
+        vSourcePosition := vSourcePosition + 1;
+      end
+      else
+      begin
+        vFinalPadBits := 5 - vBitsInBuffer;
+        vBuffer := vBuffer shl vFinalPadBits;
+        vBitsInBuffer := vBitsInBuffer + vFinalPadBits;
       end;
-
-      // Map 5-bits collected in our buffer to a Base32 encoded character
-      vDictionaryIndex := $1F and (vBuffer shr (vBitsInBuffer - 5)); // $1F mask = 00011111  (last 5 are 1)
-      vBitsInBuffer := vBitsInBuffer - 5;
-      vBuffer := ExtractLastBits(vBuffer, vBitsInBuffer); // zero out bits we just mapped
-      Result[vResultPosition] := Ord(TBase32.CharactersUsedForEncoding[vDictionaryIndex+1]);
-      vResultPosition := vResultPosition + 1;
     end;
 
-    // pad result based on the number of quantums received  (should be same as: "Length(pPlainText)*BitsPerByte mod BitsPerQuantum of" 8:16:24:32:)
-    case pDataLength mod 5 of
-      1:
-        vPadCharacters := 6;
-      2:
-        vPadCharacters := 4;
-      3:
-        vPadCharacters := 3;
-      4:
-        vPadCharacters := 1;
-    else
-      vPadCharacters := 0;
-    end;
-    for i := 1 to vPadCharacters do
-    begin
-      Result[vResultPosition + i - 1] := TBase32.PadCharacter;
-    end;
-
-    // trim result to actual bytes used
-    SetLength(Result, vResultPosition + vPadCharacters);
+    // Map 5-bits collected in our buffer to a Base32 encoded character
+    vDictionaryIndex := $1F and (vBuffer shr (vBitsInBuffer - 5)); // $1F mask = 00011111  (last 5 are 1)
+    vBitsInBuffer := vBitsInBuffer - 5;
+    vBuffer := ExtractLastBits(vBuffer, vBitsInBuffer); // zero out bits we just mapped
+    Result[vResultPosition] := Ord(TBase32.CharactersUsedForEncoding[vDictionaryIndex + 1]);
+    vResultPosition := vResultPosition + 1;
   end;
 
+  // pad result based on the number of quantums received  (should be same as: "Length(pPlainText)*BitsPerByte mod BitsPerQuantum of" 8:16:24:32:)
+  case pDataLength mod 5 of
+    1: vPadCharacters := 6;
+    2: vPadCharacters := 4;
+    3: vPadCharacters := 3;
+    4: vPadCharacters := 1;
+  else
+    vPadCharacters := 0;
+  end;
+  for i := 1 to vPadCharacters do
+    Result[vResultPosition + i - 1] := TBase32.PadCharacter;
+
+  // trim result to actual bytes used
+  SetLength(Result, vResultPosition + vPadCharacters);
 end;
 
-
-class function TBase32.Decode(const pCipherText:string):string;
+class function TBase32.Decode(const pCipherText: string): string;
 begin
   // Default to UTF8 to match most implementations in the wild
   Result := TBase32.Decode(pCipherText, TEncoding.UTF8);
 end;
 
-class function TBase32.Decode(const pCipherText:string; const pEncoding:TEncoding):string;
+class function TBase32.Decode(const pCipherText: string; const pEncoding: TEncoding): string;
 begin
   Result := pEncoding.GetString(Decode(pEncoding.GetBytes(pCipherText)));
 end;
 
-
-class function TBase32.Decode(const pCipherText:TBytes):TBytes;
+class function TBase32.Decode(const pCipherText: TBytes): TBytes;
 var
-  vInputLength:Integer;
+  vInputLength: Integer;
 begin
   SetLength(Result, 0);
 
   vInputLength := Length(pCipherText);
   if vInputLength > 0 then
-  begin
     Result := Decode(@pCipherText[0], vInputLength);
-  end;
 end;
 
-
-class function TBase32.Decode(const pCipherText:Pointer; const pDataLength:Integer):TBytes;
+class function TBase32.Decode(const pCipherText: Pointer; const pDataLength: Integer): TBytes;
 var
-  vBuffer:Integer;
-  vBitsInBuffer:Integer;
-  vDictionaryIndex:Byte;
-  vSourcePosition:Integer;
-  vResultPosition:Integer;
+  vBuffer: Integer;
+  vBitsInBuffer: Integer;
+  vDictionaryIndex: Byte;
+  vSourcePosition: Integer;
+  vResultPosition: Integer;
 begin
   SetLength(Result, 0);
 
-  if pDataLength > 0 then
-  begin
-    // estimate max bytes to be used (excess trimmed below)
-    SetLength(Result, Trunc(pDataLength / 8 * 5)); // 5 bytes out for every 8 input
-    vSourcePosition := 0;
-    vBuffer := 0;
-    vBitsInBuffer := 0;
-    vResultPosition := 0;
+  if pDataLength <= 0 then
+    Exit;
 
-    repeat
-      vDictionaryIndex := DecodeValues[PByteArray(pCipherText)[vSourcePosition]];
-      if vDictionaryIndex = 255 then
-      begin
-        // todo: Consider failing on invalid characters with Exit(EmptyStr) or Exception
-        // For now, just skip all invalid characters.
-        // If removing this general skip, potentially add intentional skip for '=', ' ', #9, #10, #13, '-'
-        // And perhaps auto-correct commonly mistyped characters (e.g. replace '0' with 'O')
-        vSourcePosition := vSourcePosition + 1;
-        Continue;
-      end;
+  // estimate max bytes to be used (excess trimmed below)
+  SetLength(Result, Trunc(pDataLength / 8 * 5)); // 5 bytes out for every 8 input
+  vSourcePosition := 0;
+  vBuffer := 0;
+  vBitsInBuffer := 0;
+  vResultPosition := 0;
 
-      vBuffer := vBuffer shl 5; // Expand buffer to add next 5-bit group
-      vBuffer := vBuffer or vDictionaryIndex; // combine the last bits collected and the next 5-bit group (Note to self: No mask needed on OR index as its known to be within range due to fixed dictionary size)
-      vBitsInBuffer := vBitsInBuffer + 5;
-
-      if vBitsInBuffer >= 8 then // Now able to fully extract an 8-bit decoded character from our bit buffer
-      begin
-        vBitsInBuffer := vBitsInBuffer - 8;
-        Result[vResultPosition] := vBuffer shr vBitsInBuffer; // shr to hide remaining buffered bits to be used in next iteration
-        vResultPosition := vResultPosition + 1;
-        vBuffer := ExtractLastBits(vBuffer, vBitsInBuffer); // zero out bits already extracted from buffer
-      end;
-
+  repeat
+    vDictionaryIndex := DecodeValues[PByteArray(pCipherText)[vSourcePosition]];
+    if vDictionaryIndex = 255 then
+    begin
+      // todo: Consider failing on invalid characters with Exit(EmptyStr) or Exception
+      // For now, just skip all invalid characters.
+      // If removing this general skip, potentially add intentional skip for '=', ' ', #9, #10, #13, '-'
+      // And perhaps auto-correct commonly mistyped characters (e.g. replace '0' with 'O')
       vSourcePosition := vSourcePosition + 1;
-    until vSourcePosition >= pDataLength; // NOTE: unused trailing bits, if any, are discarded (as is done in other common implementations)
+      Continue;
+    end;
 
-    // trim result to actual bytes used (strip off preallocated space for unused, skipped input characters)
-    SetLength(Result, vResultPosition);
-  end;
+    vBuffer := vBuffer shl 5; // Expand buffer to add next 5-bit group
+    vBuffer := vBuffer or vDictionaryIndex; // combine the last bits collected and the next 5-bit group (Note to self: No mask needed on OR index as its known to be within range due to fixed dictionary size)
+    vBitsInBuffer := vBitsInBuffer + 5;
 
+    if vBitsInBuffer >= 8 then // Now able to fully extract an 8-bit decoded character from our bit buffer
+    begin
+      vBitsInBuffer := vBitsInBuffer - 8;
+      Result[vResultPosition] := vBuffer shr vBitsInBuffer; // shr to hide remaining buffered bits to be used in next iteration
+      vResultPosition := vResultPosition + 1;
+      vBuffer := ExtractLastBits(vBuffer, vBitsInBuffer); // zero out bits already extracted from buffer
+    end;
+
+    vSourcePosition := vSourcePosition + 1;
+  until vSourcePosition >= pDataLength; // NOTE: unused trailing bits, if any, are discarded (as is done in other common implementations)
+
+  // trim result to actual bytes used (strip off preallocated space for unused, skipped input characters)
+  SetLength(Result, vResultPosition);
 end;
 
 (*
@@ -251,7 +231,6 @@ end;
   https://github.com/google/google-authenticator-libpam/blob/0b02aadc28ac261b6c7f5785d2f7f36b3e199d97/src/base32_prog.c
   https://github.com/freeotp/freeotp-android/blob/master/app/src/main/java/com/google/android/apps/authenticator/Base32String.java#L129
   FreeOTP uses this repo for iOS: https://github.com/norio-nomura/Base32
-
 
 base32 Alphabet values:
 A  0
