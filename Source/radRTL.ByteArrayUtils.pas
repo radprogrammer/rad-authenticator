@@ -8,69 +8,53 @@ interface
 uses
   System.SysUtils;
 
+function ConvertToByteArray(const pValue: Integer): TBytes; overload;
+function ConvertToByteArray(const pValue: Int64): TBytes; overload;
 
-function ConvertToByteArray(const pValue:Integer):TBytes; overload;
-function ConvertToByteArray(const pValue:Int64):TBytes; overload;
-
-function ByteArraysMatch(const pArray1, pArray2:TBytes):Boolean;
-function ReverseByteArray(const pSource:TBytes):TBytes;
-
+function ByteArraysMatch(const pArray1, pArray2: TBytes): Boolean;
+function ReverseByteArray(const pSource: TBytes): TBytes;
 
 implementation
 
-
-function ConvertToByteArray(const pValue:Integer):TBytes;
+function ConvertToByteArray(const pValue: Integer): TBytes;
 begin
   SetLength(Result, SizeOf(Integer));
   PInteger(@Result[0])^ := pValue;
 end;
 
-
-function ConvertToByteArray(const pValue:Int64):TBytes;
+function ConvertToByteArray(const pValue: Int64): TBytes;
 begin
   SetLength(Result, SizeOf(Int64));
   PInt64(@Result[0])^ := pValue;
 end;
 
-
-function ReverseByteArray(const pSource:TBytes):TBytes;
+function ReverseByteArray(const pSource: TBytes): TBytes;
 var
-  vArrayLength:Integer;
-  i:Integer;
+  vArrayLength: Integer;
+  i: Integer;
 begin
   vArrayLength := Length(pSource);
   SetLength(Result, vArrayLength);
 
   if vArrayLength > 0 then
-  begin
     for i := Low(pSource) to High(pSource) do
-    begin
       Result[High(pSource) - i] := pSource[i];
-    end;
-  end;
 end;
 
-
-function ByteArraysMatch(const pArray1, pArray2:TBytes):Boolean;
+function ByteArraysMatch(const pArray1, pArray2: TBytes): Boolean;
 var
-  vArrayLength:Integer;
+  vArrayLength: Integer;
 begin
   vArrayLength := Length(pArray1);
   if vArrayLength = 0 then
-  begin
-    Result := Length(pArray2) = 0;
-  end
+    Result := Length(pArray2) = 0
   else
   begin
     Result := vArrayLength = Length(pArray2);
 
     if Result then
-    begin
       Result := CompareMem(@pArray1[0], @pArray2[0], vArrayLength);
-    end;
   end;
-
 end;
-
 
 end.
