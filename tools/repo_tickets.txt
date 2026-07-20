@@ -1,0 +1,6 @@
+# Tickets for the rad-authenticator project
+# Repo remote url: https://github.com/radprogrammer/rad-authenticator
+# File used by create-github-issues.ps1
+# dev-automation-tooling script & document reference: C:\code\dev-automation-tooling
+
+---
