@@ -17,6 +17,8 @@ type
     procedure TestOptionsDefaults;
     procedure TestZeroTimeStepRaises;
     procedure TestEnforceMinimumKeyLengthViaOptions;
+    procedure TestValidatePassword;
+    procedure TestValidateNegativeWindowRaises;
   end;
 
 
@@ -162,6 +164,51 @@ begin
       vRaised := True;
   end;
   CheckTrue(vRaised, 'a zero/negative time step should raise EOTPException');
+end;
+
+
+procedure TTOTPTest.TestValidatePassword;
+const
+  SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'; // TBase32.Encode('12345678901234567890')
+var
+  vOptions:TTOTPOptions;
+begin
+  // Deterministic: unix time 59s -> time-step counter 1 (30s step). This is the same 20-byte secret as the RFC 4226
+  // vectors, so TOTP counter N yields the HOTP count-N value: counter0=755224, counter1=287082, counter2=359152, counter3=969429.
+
+  // exact step matches with no window
+  CheckTrue(TTOTP.ValidatePasswordAtTime(SECRET, '287082', 59, vOptions, 0), 'exact step should validate');
+
+  // one step earlier/later validate within the default window of 1
+  CheckTrue(TTOTP.ValidatePasswordAtTime(SECRET, '755224', 59, vOptions, 1), 'previous step should validate within window 1');
+  CheckTrue(TTOTP.ValidatePasswordAtTime(SECRET, '359152', 59, vOptions, 1), 'next step should validate within window 1');
+
+  // the previous step is outside a zero window
+  CheckFalse(TTOTP.ValidatePasswordAtTime(SECRET, '755224', 59, vOptions, 0), 'previous step should fail with window 0');
+
+  // two steps off: fails at window 1, passes at window 2
+  CheckFalse(TTOTP.ValidatePasswordAtTime(SECRET, '969429', 59, vOptions, 1), 'two steps off should fail at window 1');
+  CheckTrue(TTOTP.ValidatePasswordAtTime(SECRET, '969429', 59, vOptions, 2), 'two steps off should pass at window 2');
+
+  // a wrong OTP of the correct length, and a wrong-length OTP, both fail
+  CheckFalse(TTOTP.ValidatePasswordAtTime(SECRET, '000000', 59, vOptions, 1), 'a wrong OTP should fail');
+  CheckFalse(TTOTP.ValidatePasswordAtTime(SECRET, '28708', 59, vOptions, 1), 'a wrong-length OTP should fail');
+end;
+
+
+procedure TTOTPTest.TestValidateNegativeWindowRaises;
+var
+  vOptions:TTOTPOptions;
+  vRaised:Boolean;
+begin
+  vRaised := False;
+  try
+    TTOTP.ValidatePasswordAtTime('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', '287082', 59, vOptions, -1);
+  except
+    on E:EOTPException do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'a negative verification window should raise EOTPException');
 end;
 
 

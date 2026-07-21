@@ -29,6 +29,7 @@ type
     procedure TestConvertIntAndReverseByteArray_Two;
     procedure TestWipeBytes_Empty;
     procedure TestWipeBytes_ClearsContents;
+    procedure TestConstantTimeEquals;
   end;
 
 
@@ -359,6 +360,16 @@ begin
   begin
     ChecKTrue(vInput[i] = 0);
   end;
+end;
+
+
+procedure TByteArrayUtilsTest.TestConstantTimeEquals;
+begin
+  ChecKTrue(ConstantTimeEquals('287082', '287082'));   // equal
+  CheckFalse(ConstantTimeEquals('287082', '287083'));  // differs in the last character
+  CheckFalse(ConstantTimeEquals('287082', '387082'));  // differs in the first character
+  CheckFalse(ConstantTimeEquals('287082', '28708'));   // different length
+  ChecKTrue(ConstantTimeEquals('', ''));               // both empty
 end;
 
 

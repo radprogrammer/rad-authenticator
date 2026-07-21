@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## v1.0.42
+- Add `TTOTP.ValidatePassword` to verify a candidate TOTP within a configurable +/- N time-step clock-skew window (default 1, RFC 6238 section 5.2), plus a deterministic `ValidatePasswordAtTime` overload. Comparison is constant-time (`ConstantTimeEquals`, evaluating the full window with no early-out). `ByteArraysMatch` is now marked non-constant-time (not for secret comparison). Matched-step-delta / drift detection is tracked in [#20](https://github.com/radprogrammer/rad-authenticator/issues/20).
+[#14](https://github.com/radprogrammer/rad-authenticator/issues/14)
+
 ## v1.0.41
 - Replace the process-wide `THOTP.EnforceMinimumKeyLength` class var with a per-call parameter (and a `TTOTPOptions.EnforceMinimumKeyLength` field), removing the global mutable state so enforcement is thread-safe and cannot be toggled for other callers. Default remains off.
 [#16](https://github.com/radprogrammer/rad-authenticator/issues/16)

@@ -136,6 +136,7 @@ Acceptance criteria:
 ---
 Title: Add TOTP verification with a configurable clock-skew window (constant-time)
 Issue: #14
+Status: closed
 Labels: enhancement, security
 Body:
 The library only *generates* one-time passwords. There is no `Validate`/`Verify`
@@ -445,3 +446,34 @@ Acceptance criteria:
 - [ ] A correctly-encoded secret (padded or unpadded per the chosen policy) still decodes in strict mode.
 - [ ] Lenient behavior unchanged; existing tests pass.
 - [ ] DUnit tests cover correct and incorrect pad counts and the invalid-remainder cases.
+
+---
+Title: Return matched step delta from TOTP verification for clock-drift detection
+Issue: #20
+Labels: enhancement
+Body:
+Follow-on from #14. #14 implemented `TTOTP.ValidatePassword` returning `Boolean`
+over a +/- N step window. RFC 6238 section 6 and RFC 4226 resynchronization
+describe using the *matched step offset* to detect and correct a client's
+persistent clock drift, which the current Boolean API discards.
+
+Deferred scope:
+- Add a verification overload that reports the matched step delta (e.g. an out
+  parameter or a small result record `{ Matched: Boolean; StepDelta: Integer }`),
+  where StepDelta is the offset from the reference step at which the candidate
+  matched (0 = exact, -1 = one step behind, +1 = one step ahead).
+- A server can persist per-account drift and pre-shift the reference step on
+  subsequent validations.
+
+Implementation notes:
+- Builds on `ValidateAtCounter` in radRTL.TOTP. The loop already visits each step
+  in the window; capture the delta on match without adding an early-out.
+- Keep the existing Boolean `ValidatePassword` overloads. The delta is returned to
+  the (trusted) caller; the full window is still evaluated so timing does not leak
+  which step matched.
+
+Acceptance criteria:
+- [ ] A verification overload reports whether the candidate matched and at what step delta.
+- [ ] StepDelta is 0 for an exact match, negative for earlier steps, positive for later steps.
+- [ ] The full window is still evaluated (no early exit) to preserve constant-time behavior.
+- [ ] Tests cover exact, -1, +1, and no-match cases via the deterministic (explicit-time) overload.

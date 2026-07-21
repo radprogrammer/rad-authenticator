@@ -12,11 +12,19 @@ uses
 function ConvertToByteArray(const pValue:Integer):TBytes; overload;
 function ConvertToByteArray(const pValue:Int64):TBytes; overload;
 
+// NOTE: value comparison only -- CompareMem short-circuits on first difference, so this is NOT constant-time.
+// Do NOT use for secret/OTP comparison; use ConstantTimeEquals for that.
 function ByteArraysMatch(const pArray1, pArray2:TBytes):Boolean;
 function ReverseByteArray(const pSource:TBytes):TBytes;
 
 // Best-effort scrub of a byte buffer's contents (e.g. intermediate key material).
 procedure WipeBytes(var pBytes:TBytes);
+
+// Constant-time equality: compares the full length with no early-out, so timing does not reveal how many leading
+// elements matched. Use this (not ByteArraysMatch) for secret/OTP comparisons. A length mismatch returns False
+// (length is not secret for OTPs); equal-length inputs are always compared in full.
+function ConstantTimeEquals(const pLeft, pRight:string):Boolean; overload;
+function ConstantTimeEquals(const pLeft, pRight:TBytes):Boolean; overload;
 
 
 implementation
@@ -65,6 +73,46 @@ begin
   begin
     FillChar(pBytes[0], Length(pBytes), 0);
   end;
+end;
+
+
+function ConstantTimeEquals(const pLeft, pRight:string):Boolean;
+var
+  i:Integer;
+  vDiff:Integer;
+begin
+  if Length(pLeft) <> Length(pRight) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  vDiff := 0;
+  for i := 1 to Length(pLeft) do
+  begin
+    vDiff := vDiff or (Ord(pLeft[i]) xor Ord(pRight[i])); // accumulate all differences; no data-dependent branch
+  end;
+  Result := vDiff = 0;
+end;
+
+
+function ConstantTimeEquals(const pLeft, pRight:TBytes):Boolean;
+var
+  i:Integer;
+  vDiff:Integer;
+begin
+  if Length(pLeft) <> Length(pRight) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  vDiff := 0;
+  for i := 0 to Length(pLeft) - 1 do
+  begin
+    vDiff := vDiff or (pLeft[i] xor pRight[i]);
+  end;
+  Result := vDiff = 0;
 end;
 
 
