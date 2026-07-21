@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## v1.0.38
+- Add an opt-in strict decode mode to `TBase32.Decode` (new `pStrict` parameter, default off / lenient). When enabled, decoding raises `EBase32DecodeError` on any character outside the Base32 alphabet (the `=` pad is still tolerated), and the string overload fails loud on a non-text payload instead of silently mangling it.
+[#12](https://github.com/radprogrammer/rad-authenticator/issues/12)
+
 ## v1.0.37
 - Zeroize intermediate key material (Base32-decoded secret, UTF-8 encoded secret, counter bytes, and HMAC digest) after each OTP computation, wiping the buffers `THOTP` allocates even on the exception path. Caller-owned secrets are left untouched.
 [#15](https://github.com/radprogrammer/rad-authenticator/issues/15)

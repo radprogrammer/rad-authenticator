@@ -10,6 +10,9 @@ uses
 
 type
 
+  EBase32DecodeError = class(Exception);
+
+
   TBase32 = class
   public const
     // 32 characters, 5 Base2 digits '11111' supports complete dictionary (Base32 encoding uses 5-bit groups)
@@ -50,10 +53,11 @@ type
     class function Encode(const pPlainText:TBytes):TBytes; overload;
     class function Encode(const pPlainText:Pointer; const pDataLength:Integer):TBytes; overload;
 
-    class function Decode(const pCipherText:string):string; overload;
-    class function Decode(const pCipherText:string; const pEncoding:TEncoding):string; overload;
-    class function Decode(const pCipherText:TBytes):TBytes; overload;
-    class function Decode(const pCipherText:Pointer; const pDataLength:Integer):TBytes; overload;
+    // pStrict (default False = lenient): when True, decoding raises EBase32DecodeError on any character outside the Base32 alphabet (the pad character '=' is still tolerated).
+    class function Decode(const pCipherText:string; const pStrict:Boolean = False):string; overload;
+    class function Decode(const pCipherText:string; const pEncoding:TEncoding; const pStrict:Boolean = False):string; overload;
+    class function Decode(const pCipherText:TBytes; const pStrict:Boolean = False):TBytes; overload;
+    class function Decode(const pCipherText:Pointer; const pDataLength:Integer; const pStrict:Boolean = False):TBytes; overload;
   end;
 
 
@@ -61,6 +65,23 @@ implementation
 
 uses
   radRTL.BitUtils;
+
+
+// Plain (non-constant-time) byte comparison used only to validate a lossless text round-trip in strict mode.
+// Intentionally NOT ByteArraysMatch: this is not a secret-equality check (see the constant-time note in issue #14).
+function SameBytes(const pArray1, pArray2:TBytes):Boolean;
+begin
+  Result := (Length(pArray1) = Length(pArray2)) and ((Length(pArray1) = 0) or CompareMem(@pArray1[0], @pArray2[0], Length(pArray1)));
+end;
+
+
+function DescribeByte(const pByte:Byte):string;
+begin
+  if (pByte >= 32) and (pByte <= 126) then // printable ASCII
+    Result := Format('''%s'' (#%d)', [Chr(pByte), pByte])
+  else
+    Result := Format('#%d', [pByte]);
+end;
 
 
 class function TBase32.Encode(const pPlainText:string):string;
@@ -164,19 +185,42 @@ begin
 end;
 
 
-class function TBase32.Decode(const pCipherText:string):string;
+class function TBase32.Decode(const pCipherText:string; const pStrict:Boolean = False):string;
 begin
   // Default to UTF8 to match most implementations in the wild
-  Result := TBase32.Decode(pCipherText, TEncoding.UTF8);
+  Result := TBase32.Decode(pCipherText, TEncoding.UTF8, pStrict);
 end;
 
-class function TBase32.Decode(const pCipherText:string; const pEncoding:TEncoding):string;
+class function TBase32.Decode(const pCipherText:string; const pEncoding:TEncoding; const pStrict:Boolean = False):string;
+var
+  vDecoded:TBytes;
 begin
-  Result := pEncoding.GetString(Decode(pEncoding.GetBytes(pCipherText)));
+  vDecoded := Decode(pEncoding.GetBytes(pCipherText), pStrict);
+
+  if pStrict then
+  begin
+    // The string->string overload must not silently mangle a binary payload. Depending on the RTL/encoding an
+    // invalid sequence may either be replaced (e.g. U+FFFD) or raise a low-level EEncodingError; surface both as a
+    // typed EBase32DecodeError so callers get one predictable exception. (Use the TBytes overload for binary secrets.)
+    try
+      Result := pEncoding.GetString(vDecoded);
+      if not SameBytes(pEncoding.GetBytes(Result), vDecoded) then
+      begin
+        raise EBase32DecodeError.Create('Base32 payload is not valid text in the target encoding; use the TBytes Decode overload for binary secrets');
+      end;
+    except
+      on E:EEncodingError do
+        raise EBase32DecodeError.Create('Base32 payload is not valid text in the target encoding; use the TBytes Decode overload for binary secrets');
+    end;
+  end
+  else
+  begin
+    Result := pEncoding.GetString(vDecoded); // lenient: behavior unchanged (the RTL may itself replace or raise on invalid sequences)
+  end;
 end;
 
 
-class function TBase32.Decode(const pCipherText:TBytes):TBytes;
+class function TBase32.Decode(const pCipherText:TBytes; const pStrict:Boolean = False):TBytes;
 var
   vInputLength:Integer;
 begin
@@ -185,12 +229,12 @@ begin
   vInputLength := Length(pCipherText);
   if vInputLength > 0 then
   begin
-    Result := Decode(@pCipherText[0], vInputLength);
+    Result := Decode(@pCipherText[0], vInputLength, pStrict);
   end;
 end;
 
 
-class function TBase32.Decode(const pCipherText:Pointer; const pDataLength:Integer):TBytes;
+class function TBase32.Decode(const pCipherText:Pointer; const pDataLength:Integer; const pStrict:Boolean = False):TBytes;
 var
   vBuffer:Integer;
   vBitsInBuffer:Integer;
@@ -213,10 +257,14 @@ begin
       vDictionaryIndex := DecodeValues[PByteArray(pCipherText)[vSourcePosition]];
       if vDictionaryIndex = 255 then
       begin
-        // todo: Consider failing on invalid characters with Exit(EmptyStr) or Exception
-        // For now, just skip all invalid characters.
-        // If removing this general skip, potentially add intentional skip for '=', ' ', #9, #10, #13, '-'
-        // And perhaps auto-correct commonly mistyped characters (e.g. replace '0' with 'O')
+        if pStrict and (PByteArray(pCipherText)[vSourcePosition] <> PadCharacter) then
+        begin
+          // Strict mode: reject any character outside the Base32 alphabet. The pad character '=' is still
+          // tolerated (skipped) here; full padding position/count validation is handled separately (issue #13).
+          raise EBase32DecodeError.CreateFmt('Invalid Base32 character %s at position %d', [DescribeByte(PByteArray(pCipherText)[vSourcePosition]), vSourcePosition + 1]);
+        end;
+        // Lenient mode (default): skip all invalid characters.
+        // (Auto-correcting commonly mistyped characters, e.g. '0'->'O', is intentionally not attempted.)
         vSourcePosition := vSourcePosition + 1;
         Continue;
       end;

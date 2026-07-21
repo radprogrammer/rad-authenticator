@@ -18,6 +18,10 @@ type
     procedure TestLongerInput_LoremIpsum;
     procedure TestEncodingDelphi;
     procedure TestDecodingDelphi;
+    procedure TestStrict_RejectsInvalidCharacter;
+    procedure TestStrict_AcceptsValidPaddedInput;
+    procedure TestStrict_RejectsWhitespaceAndDash;
+    procedure TestStrict_RejectsBinaryPayloadViaStringOverload;
   end;
 
 
@@ -94,6 +98,77 @@ end;
 procedure TBase32Test.TestDecodingDelphi;
 begin
   CheckEquals('Delphi', TBase32.Decode('IRSWY4DINE======'));
+end;
+
+
+procedure TBase32Test.TestStrict_RejectsInvalidCharacter;
+var
+  vRaised:Boolean;
+begin
+  // Lenient (default) silently skips the invalid character.
+  CheckEquals('f', TBase32.Decode('M!Y======'));
+
+  // Strict raises on the first non-alphabet character.
+  vRaised := False;
+  try
+    TBase32.Decode('M!Y======', True);
+  except
+    on E:EBase32DecodeError do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'strict decode should raise EBase32DecodeError on an invalid character');
+end;
+
+
+procedure TBase32Test.TestStrict_AcceptsValidPaddedInput;
+begin
+  // A correctly-encoded, padded string decodes the same in strict mode as lenient mode.
+  CheckEquals('f', TBase32.Decode('MY======', True));
+  CheckEquals('foob', TBase32.Decode('MZXW6YQ=', True));
+  CheckEquals('fooba', TBase32.Decode('MZXW6YTB', True));
+end;
+
+
+procedure TBase32Test.TestStrict_RejectsWhitespaceAndDash;
+
+  function StrictRaises(const pInput:string):Boolean;
+  begin
+    Result := False;
+    try
+      TBase32.Decode(pInput, True);
+    except
+      on E:EBase32DecodeError do
+        Result := True;
+    end;
+  end;
+
+begin
+  // Decision: strict tolerates only the pad character '='. Whitespace and the '-'
+  // separator (which lenient mode silently skips) are rejected.
+  CheckTrue(StrictRaises('MZXW6 YTB'), 'strict should reject embedded whitespace');
+  CheckTrue(StrictRaises('MZXW6' + #9 + 'YTB'), 'strict should reject a tab');
+  CheckTrue(StrictRaises('MZXW6-YTB'), 'strict should reject a dash separator');
+
+  // '=' padding remains tolerated in strict mode.
+  CheckEquals('foob', TBase32.Decode('MZXW6YQ=', True));
+end;
+
+
+procedure TBase32Test.TestStrict_RejectsBinaryPayloadViaStringOverload;
+var
+  vRaised:Boolean;
+begin
+  // 'QA======' decodes to the single byte $80, which is not valid UTF-8. Strict mode surfaces this as a typed
+  // EBase32DecodeError regardless of whether the RTL would otherwise mangle it to U+FFFD or raise a low-level
+  // encoding error. (Callers wanting the raw bytes should use the TBytes Decode overload.)
+  vRaised := False;
+  try
+    TBase32.Decode('QA======', True);
+  except
+    on E:EBase32DecodeError do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'strict string decode should raise EBase32DecodeError on a non-text (binary) payload');
 end;
 
 

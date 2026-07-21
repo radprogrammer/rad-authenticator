@@ -6,6 +6,7 @@
 ---
 Title: Add opt-in strict-decode mode to TBase32.Decode that raises on invalid characters
 Issue: #12
+Status: closed
 Labels: enhancement, security
 Body:
 `TBase32.Decode` currently skips every unmappable character silently instead of
