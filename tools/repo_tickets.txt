@@ -80,6 +80,7 @@ Acceptance criteria:
 ---
 Title: Reject non-canonical Base32 input (non-zero trailing bits and malformed padding)
 Issue: #13
+Status: closed
 Labels: enhancement, correctness
 Body:
 `TBase32.Decode` accepts non-canonical input: it discards leftover trailing bits
@@ -403,3 +404,42 @@ Acceptance criteria (only if the trigger occurs):
 - [ ] Counter byte-order is produced host-independently (shift-based conversion) and no longer relies on native memory layout + reversal.
 - [ ] RFC 4226/6238 vector tests pass on the big-endian target.
 - [ ] `ReverseByteArray` is removed from the OTP path (or retained only if still used elsewhere).
+
+---
+Title: Validate Base32 padding count/length and decide the padded-vs-unpadded policy (strict mode)
+Issue: #19
+Labels: enhancement, correctness
+Body:
+Follow-on from #13. #13 added strict-mode rejection of non-zero trailing bits
+(RFC 4648 section 3.5) and of data characters appearing after padding. It
+intentionally deferred full padding *count/length* validation because that
+requires a policy decision this ticket must resolve.
+
+Deferred scope:
+- In strict mode, validate that the number of `=` pad characters is correct for
+  the data length: `numDataChars mod 8` must be in {0,2,4,5,7} (1,3,6 are
+  impossible for valid Base32), and, when padding is present, the pad-run length
+  must equal the expected value (0/6/4/3/1 respectively) so that
+  `dataChars + padChars` is a multiple of 8.
+- Reject an invalid data-length remainder (1,3,6) in strict mode regardless of
+  padding.
+- **Decide the padded-vs-unpadded policy.** Real-world TOTP secrets (e.g. Google
+  Authenticator) are frequently stored UNPADDED, so requiring canonical padding
+  would reject them even in strict mode. Options: (a) accept unpadded input but,
+  if any `=` is present, require the exact correct count/position; (b) require
+  full canonical padding; (c) expose it as a separate option. Pick one and
+  document it.
+
+Implementation notes:
+- Builds on the strict infrastructure added in #12/#13 (`pStrict`,
+  `EBase32DecodeError`, the `vPaddingSeen` flag). Count data chars and pad chars
+  during the decode loop and validate after it.
+- Keep lenient (default) behavior byte-for-byte unchanged.
+
+Acceptance criteria:
+- [ ] The padded-vs-unpadded policy is decided and documented.
+- [ ] Strict rejects an incorrect `=` count for the data length.
+- [ ] Strict rejects an invalid data-length remainder (1,3,6).
+- [ ] A correctly-encoded secret (padded or unpadded per the chosen policy) still decodes in strict mode.
+- [ ] Lenient behavior unchanged; existing tests pass.
+- [ ] DUnit tests cover correct and incorrect pad counts and the invalid-remainder cases.

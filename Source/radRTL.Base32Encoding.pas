@@ -241,6 +241,7 @@ var
   vDictionaryIndex:Byte;
   vSourcePosition:Integer;
   vResultPosition:Integer;
+  vPaddingSeen:Boolean;
 begin
   SetLength(Result, 0);
 
@@ -252,21 +253,36 @@ begin
     vBuffer := 0;
     vBitsInBuffer := 0;
     vResultPosition := 0;
+    vPaddingSeen := False;
 
     repeat
       vDictionaryIndex := DecodeValues[PByteArray(pCipherText)[vSourcePosition]];
       if vDictionaryIndex = 255 then
       begin
-        if pStrict and (PByteArray(pCipherText)[vSourcePosition] <> PadCharacter) then
+        if pStrict then
         begin
-          // Strict mode: reject any character outside the Base32 alphabet. The pad character '=' is still
-          // tolerated (skipped) here; full padding position/count validation is handled separately (issue #13).
-          raise EBase32DecodeError.CreateFmt('Invalid Base32 character %s at position %d', [DescribeByte(PByteArray(pCipherText)[vSourcePosition]), vSourcePosition + 1]);
+          if PByteArray(pCipherText)[vSourcePosition] = PadCharacter then
+          begin
+            // '=' is legal only as a trailing padding run; note it so any later data character is rejected below.
+            vPaddingSeen := True;
+          end
+          else
+          begin
+            // Reject any character outside the Base32 alphabet.
+            raise EBase32DecodeError.CreateFmt('Invalid Base32 character %s at position %d', [DescribeByte(PByteArray(pCipherText)[vSourcePosition]), vSourcePosition + 1]);
+          end;
         end;
         // Lenient mode (default): skip all invalid characters.
         // (Auto-correcting commonly mistyped characters, e.g. '0'->'O', is intentionally not attempted.)
         vSourcePosition := vSourcePosition + 1;
         Continue;
+      end;
+
+      if pStrict and vPaddingSeen then
+      begin
+        // A Base32 data character following padding means '=' was not a trailing run -> malformed input.
+        // (Validating the pad *count* for the data length is tracked separately in issue #19.)
+        raise EBase32DecodeError.CreateFmt('Base32 data character %s at position %d appears after padding', [DescribeByte(PByteArray(pCipherText)[vSourcePosition]), vSourcePosition + 1]);
       end;
 
       vBuffer := vBuffer shl 5; // Expand buffer to add next 5-bit group
@@ -282,7 +298,14 @@ begin
       end;
 
       vSourcePosition := vSourcePosition + 1;
-    until vSourcePosition >= pDataLength; // NOTE: unused trailing bits, if any, are discarded (as is done in other common implementations)
+    until vSourcePosition >= pDataLength; // NOTE: in lenient mode unused trailing bits, if any, are discarded (as is done in other common implementations)
+
+    // Strict mode: a conforming encoder zero-fills the final bit group, so any non-zero leftover bits mean the input
+    // is non-canonical (RFC 4648 section 3.5) -- e.g. two different inputs that decode to the same bytes in lenient mode.
+    if pStrict and (vBitsInBuffer > 0) and (ExtractLastBits(vBuffer, vBitsInBuffer) <> 0) then
+    begin
+      raise EBase32DecodeError.Create('Non-canonical Base32: trailing bits are not zero (per RFC 4648 section 3.5)');
+    end;
 
     // trim result to actual bytes used (strip off preallocated space for unused, skipped input characters)
     SetLength(Result, vResultPosition);

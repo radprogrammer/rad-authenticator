@@ -22,6 +22,8 @@ type
     procedure TestStrict_AcceptsValidPaddedInput;
     procedure TestStrict_RejectsWhitespaceAndDash;
     procedure TestStrict_RejectsBinaryPayloadViaStringOverload;
+    procedure TestStrict_RejectsNonZeroTrailingBits;
+    procedure TestStrict_RejectsDataAfterPadding;
   end;
 
 
@@ -169,6 +171,42 @@ begin
       vRaised := True;
   end;
   CheckTrue(vRaised, 'strict string decode should raise EBase32DecodeError on a non-text (binary) payload');
+end;
+
+
+procedure TBase32Test.TestStrict_RejectsNonZeroTrailingBits;
+var
+  vRaised:Boolean;
+begin
+  // 'MZ======' and 'MY======' both decode to 'f' in lenient mode, but only 'MY======' is
+  // canonical -- 'MZ======' carries non-zero trailing bits (RFC 4648 section 3.5).
+  CheckEquals('f', TBase32.Decode('MZ======'));       // lenient: same result as the canonical form
+  CheckEquals('f', TBase32.Decode('MY======', True)); // strict: canonical form still accepted
+
+  vRaised := False;
+  try
+    TBase32.Decode('MZ======', True);
+  except
+    on E:EBase32DecodeError do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'strict decode should reject non-zero trailing bits');
+end;
+
+
+procedure TBase32Test.TestStrict_RejectsDataAfterPadding;
+var
+  vRaised:Boolean;
+begin
+  // A Base32 data character appearing after a pad character is malformed.
+  vRaised := False;
+  try
+    TBase32.Decode('MY=A====', True);
+  except
+    on E:EBase32DecodeError do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'strict decode should reject a data character after padding');
 end;
 
 

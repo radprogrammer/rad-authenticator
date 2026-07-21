@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## v1.0.39
+- Extend `TBase32.Decode` strict mode (`pStrict`) to reject non-canonical input: non-zero trailing bits (RFC 4648 section 3.5) and data characters appearing after padding now raise `EBase32DecodeError`. Lenient (default) behavior is unchanged. Padding count/length validation is tracked in [#19](https://github.com/radprogrammer/rad-authenticator/issues/19).
+[#13](https://github.com/radprogrammer/rad-authenticator/issues/13)
+
 ## v1.0.38
 - Add an opt-in strict decode mode to `TBase32.Decode` (new `pStrict` parameter, default off / lenient). When enabled, decoding raises `EBase32DecodeError` on any character outside the Base32 alphabet (the `=` pad is still tolerated), and the string overload fails loud on a non-text payload instead of silently mangling it.
 [#12](https://github.com/radprogrammer/rad-authenticator/issues/12)
