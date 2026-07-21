@@ -279,6 +279,7 @@ Acceptance criteria:
 ---
 Title: Introduce a TOTPOptions record for OTP configuration (time step, T0, 9-digit output)
 Issue: #17
+Status: closed
 Labels: enhancement, refactor
 Body:
 Several configuration values are currently hardcoded, and separate tickets are

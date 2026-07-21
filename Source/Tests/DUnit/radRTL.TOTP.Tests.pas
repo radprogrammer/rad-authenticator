@@ -13,6 +13,9 @@ type
   TTOTPTest = class(TTestCase)
   published
     procedure TestRFCVectors;
+    procedure TestTimeStepCounter;
+    procedure TestOptionsDefaults;
+    procedure TestZeroTimeStepRaises;
   end;
 
 
@@ -92,6 +95,50 @@ begin
     CheckEquals(EXPECTED_7DIGIT_OTP[i], TTOTP.GeneratePassword(BASE32_SECRETKEY_INPUT, TIME_COUNTER_INPUT[i], TOTPLength.SevenDigits));
     CheckEquals(EXPECTED_6DIGIT_OTP[i], TTOTP.GeneratePassword(BASE32_SECRETKEY_INPUT, TIME_COUNTER_INPUT[i], TOTPLength.SixDigits));
   end;
+end;
+
+
+procedure TTOTPTest.TestTimeStepCounter;
+begin
+  // RFC 6238: with a 30s step and T0=0, time 59s -> T=1 and 1111111109s -> T=$23523EC.
+  CheckEquals(Int64(1), TTOTP.TimeStepCounter(59, 30, 0));
+  CheckEquals(Int64($23523EC), TTOTP.TimeStepCounter(1111111109, 30, 0));
+
+  // A non-zero T0 shifts the counting epoch.
+  CheckEquals(Int64(0), TTOTP.TimeStepCounter(59, 30, 30));
+
+  // A non-30 step changes the window size.
+  CheckEquals(Int64(0), TTOTP.TimeStepCounter(59, 60, 0));
+  CheckEquals(Int64(1), TTOTP.TimeStepCounter(60, 60, 0));
+end;
+
+
+procedure TTOTPTest.TestOptionsDefaults;
+var
+  vOptions:TTOTPOptions;
+begin
+  // A freshly-declared record is initialized to safe defaults (never a zero time step).
+  CheckEquals(Ord(TOTPLength.SixDigits), Ord(vOptions.OutputLength));
+  CheckEquals(30, vOptions.TimeStepSeconds);
+  CheckEquals(Int64(0), vOptions.T0);
+end;
+
+
+procedure TTOTPTest.TestZeroTimeStepRaises;
+var
+  vOptions:TTOTPOptions;
+  vRaised:Boolean;
+begin
+  vOptions.TimeStepSeconds := 0;
+
+  vRaised := False;
+  try
+    TTOTP.GeneratePassword('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', vOptions);
+  except
+    on E:EOTPException do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'a zero/negative time step should raise EOTPException');
 end;
 
 

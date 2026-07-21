@@ -16,6 +16,7 @@ type
     INVALID_KEY = 'KNEE6USU';   //'SHORT' base32 encoded
   published
     procedure TestRFCVectors;
+    procedure TestRFCVectors_NineDigits;
     procedure TestMinimumKeyLengthIgnoredByDefault;
     procedure TestMinimumKeyLengthException;
   end;
@@ -78,6 +79,22 @@ begin
   begin
     CheckEquals(EXPECTED_VALUES[i], THOTP.GeneratePassword(SECRET_PLAINTEXT_BYTES, i));
     CheckEquals(EXPECTED_VALUES[i], THOTP.GeneratePassword(SECRET_BASE32_STRING, i));
+  end;
+end;
+
+
+procedure THOTPTest.TestRFCVectors_NineDigits;
+const
+  SECRET_PLAINTEXT_BYTES:TBytes = [49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48]; //'12345678901234567890'
+  // 9-digit values are the RFC 4226 Appendix D "Truncated Decimal" column mod 1,000,000,000, formatted %.9d.
+  // e.g. count 0: 1284755224 -> 284755224 ; count 1: 1094287082 -> 094287082 ; count 7: 82162583 -> 082162583
+  EXPECTED_9DIGIT: array [0 .. 9] of string = ('284755224', '094287082', '137359152', '726969429', '640338314', '868254676', '918287922', '082162583', '673399871', '645520489');
+var
+  i:integer;
+begin
+  for i := low(EXPECTED_9DIGIT) to high(EXPECTED_9DIGIT) do
+  begin
+    CheckEquals(EXPECTED_9DIGIT[i], THOTP.GeneratePassword(SECRET_PLAINTEXT_BYTES, i, TOTPLength.NineDigits));
   end;
 end;
 

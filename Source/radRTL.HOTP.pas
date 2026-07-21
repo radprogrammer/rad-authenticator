@@ -13,14 +13,15 @@ type
   EOTPException = class(Exception);
 
 
-  // "Password generated must be at least 6, but can be 7 or 8" digits in length (simply changes the MOD operation) (9-digit addition suggested in errata: https://www.rfc-editor.org/errata/eid2400)
-  TOTPLength = (SixDigits, SevenDigits, EightDigits);
+  // "Password generated must be at least 6, but can be 7 or 8" digits in length (simply changes the MOD operation). 9-digit variant per errata: https://www.rfc-editor.org/errata/eid2400
+  // 10 digits is intentionally NOT supported: the dynamic binary code is a 31-bit value (max 2147483647), so mod 10^10 would exceed the source range (and Int32) and yield a biased result.
+  TOTPLength = (SixDigits, SevenDigits, EightDigits, NineDigits);
 
 
   THOTP = class
   private const
-    ModTable: array [0 .. 2] of integer = (1000000, 10000000, 100000000); // 6,7,8 zeros matching OTP Length
-    FormatTable: array [0 .. 2] of string = ('%.6d', '%.7d', '%.8d'); // 6,7,8 string length (padded left with zeros)
+    ModTable: array [0 .. 3] of integer = (1000000, 10000000, 100000000, 1000000000); // 6,7,8,9 zeros matching OTP Length
+    FormatTable: array [0 .. 3] of string = ('%.6d', '%.7d', '%.8d', '%.9d'); // 6,7,8,9 string length (padded left with zeros)
     RFCMinimumKeyLengthBytes = 16; // "The length of shared secret MUST be at least 128 bits. This document RECOMMENDs a shared secret length of 160 bits."
   public class var
     EnforceMinimumKeyLength:Boolean;
