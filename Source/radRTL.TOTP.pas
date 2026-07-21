@@ -18,9 +18,10 @@ type
   // Configuration for TOTP password generation. Declare a variable and override only the fields you need: the
   // class operator Initialize applies safe defaults, so an uninitialized TTOTPOptions never yields a zero time step.
   TTOTPOptions = record
-    OutputLength:TOTPLength;   // default SixDigits
-    TimeStepSeconds:Integer;   // default 30; MUST be > 0
-    T0:Int64;                  // default 0 (Unix epoch)
+    OutputLength:TOTPLength;            // default SixDigits
+    TimeStepSeconds:Integer;            // default 30; MUST be > 0
+    T0:Int64;                           // default 0 (Unix epoch)
+    EnforceMinimumKeyLength:Boolean;    // default False (RFC 4226 128-bit minimum)
     class operator Initialize(out Dest:TTOTPOptions);
   end;
 
@@ -51,6 +52,7 @@ begin
   Dest.OutputLength := TOTPLength.SixDigits;
   Dest.TimeStepSeconds := DefaultTOTPTimeStepSeconds;
   Dest.T0 := DefaultTOTPT0;
+  Dest.EnforceMinimumKeyLength := False;
 end;
 
 
@@ -80,7 +82,7 @@ var
 begin
   // Now is local time; DateTimeToUnix with AInputIsUTC=False converts it to a correct UTC Unix timestamp.
   vCounter := TimeStepCounter(DateTimeToUnix(Now, {AInputIsUTC=}False), pOptions.TimeStepSeconds, pOptions.T0);
-  Result := THOTP.GeneratePassword(pBase32EncodedSecretKey, vCounter, pOptions.OutputLength);
+  Result := THOTP.GeneratePassword(pBase32EncodedSecretKey, vCounter, pOptions.OutputLength, pOptions.EnforceMinimumKeyLength);
 end;
 
 

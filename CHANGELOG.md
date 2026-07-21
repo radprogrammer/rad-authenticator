@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## v1.0.41
+- Replace the process-wide `THOTP.EnforceMinimumKeyLength` class var with a per-call parameter (and a `TTOTPOptions.EnforceMinimumKeyLength` field), removing the global mutable state so enforcement is thread-safe and cannot be toggled for other callers. Default remains off.
+[#16](https://github.com/radprogrammer/rad-authenticator/issues/16)
+
 ## v1.0.40
 - Add a `TTOTPOptions` record (output length, time step, T0) with safe defaults and a `TTOTP.GeneratePassword(secret, options)` overload, plus a deterministic `TTOTP.TimeStepCounter` helper. Support 9-digit output (`TOTPLength.NineDigits`); 10 digits is intentionally unsupported. A zero or negative time step raises `EOTPException`.
 [#17](https://github.com/radprogrammer/rad-authenticator/issues/17)

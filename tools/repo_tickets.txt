@@ -237,6 +237,7 @@ Acceptance criteria:
 ---
 Title: Replace process-wide EnforceMinimumKeyLength class var with per-call control
 Issue: #16
+Status: closed
 Labels: enhancement, refactor
 Body:
 `THOTP.EnforceMinimumKeyLength` (`Source/radRTL.HOTP.pas:25-26`) is a process-wide

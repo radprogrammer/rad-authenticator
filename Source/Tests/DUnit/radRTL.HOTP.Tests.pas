@@ -19,6 +19,7 @@ type
     procedure TestRFCVectors_NineDigits;
     procedure TestMinimumKeyLengthIgnoredByDefault;
     procedure TestMinimumKeyLengthException;
+    procedure TestMinimumKeyLengthIsPerCall;
   end;
 
 
@@ -101,16 +102,33 @@ end;
 
 procedure THOTPTest.TestMinimumKeyLengthIgnoredByDefault;
 begin
-  THOTP.EnforceMinimumKeyLength := False;
-  THOTP.GeneratePassword(INVALID_KEY, 0);  //should not generate an exception event though we are using a short key
+  THOTP.GeneratePassword(INVALID_KEY, 0);  //default (enforcement off) does not raise even with a short key
   FailsOnNoChecksExecuted := False;
 end;
 
 procedure THOTPTest.TestMinimumKeyLengthException;
 begin
   ExpectedException := EOTPException;
-  THOTP.EnforceMinimumKeyLength := True;
-  THOTP.GeneratePassword(INVALID_KEY, 0); //should toss EOTPException as key is less than 128-bits which is minimum required per RFC-4226
+  //enforcement requested per-call raises: key is less than 128-bits which is the RFC-4226 minimum
+  THOTP.GeneratePassword(INVALID_KEY, 0, TOTPLength.SixDigits, {pEnforceMinimumKeyLength=}True);
+end;
+
+procedure THOTPTest.TestMinimumKeyLengthIsPerCall;
+var
+  vRaised:Boolean;
+begin
+  // Enforcement is per-call state, not process-wide: requesting it on one call must not affect another.
+  vRaised := False;
+  try
+    THOTP.GeneratePassword(INVALID_KEY, 0, TOTPLength.SixDigits, {pEnforceMinimumKeyLength=}True);
+  except
+    on E:EOTPException do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'per-call enforcement should raise on a short key');
+
+  // A subsequent default call is unaffected -- no lingering global flag.
+  THOTP.GeneratePassword(INVALID_KEY, 0);  //must not raise
 end;
 
 

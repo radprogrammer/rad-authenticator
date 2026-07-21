@@ -16,6 +16,7 @@ type
     procedure TestTimeStepCounter;
     procedure TestOptionsDefaults;
     procedure TestZeroTimeStepRaises;
+    procedure TestEnforceMinimumKeyLengthViaOptions;
   end;
 
 
@@ -121,6 +122,28 @@ begin
   CheckEquals(Ord(TOTPLength.SixDigits), Ord(vOptions.OutputLength));
   CheckEquals(30, vOptions.TimeStepSeconds);
   CheckEquals(Int64(0), vOptions.T0);
+  CheckFalse(vOptions.EnforceMinimumKeyLength);
+end;
+
+
+procedure TTOTPTest.TestEnforceMinimumKeyLengthViaOptions;
+var
+  vOptions:TTOTPOptions;
+  vRaised:Boolean;
+begin
+  // Off by default: a short key does not raise.
+  TTOTP.GeneratePassword('KNEE6USU');  //'SHORT' decoded = 5 bytes; must not raise
+
+  // Enabled via the options record: a short key raises EOTPException.
+  vOptions.EnforceMinimumKeyLength := True;
+  vRaised := False;
+  try
+    TTOTP.GeneratePassword('KNEE6USU', vOptions);
+  except
+    on E:EOTPException do
+      vRaised := True;
+  end;
+  CheckTrue(vRaised, 'TTOTPOptions.EnforceMinimumKeyLength should raise on a short key');
 end;
 
 

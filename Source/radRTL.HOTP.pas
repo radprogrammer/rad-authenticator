@@ -23,12 +23,11 @@ type
     ModTable: array [0 .. 3] of integer = (1000000, 10000000, 100000000, 1000000000); // 6,7,8,9 zeros matching OTP Length
     FormatTable: array [0 .. 3] of string = ('%.6d', '%.7d', '%.8d', '%.9d'); // 6,7,8,9 string length (padded left with zeros)
     RFCMinimumKeyLengthBytes = 16; // "The length of shared secret MUST be at least 128 bits. This document RECOMMENDs a shared secret length of 160 bits."
-  public class var
-    EnforceMinimumKeyLength:Boolean;
   public
-    /// <summary> HOTP: HMAC-Based One-Time Password Algorithm</summary>
-    class function GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string; overload;
-    class function GeneratePassword(const pPlainTextSecretKey:TBytes; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string; overload;
+    /// <summary> HOTP: HMAC-Based One-Time Password Algorithm.</summary>
+    /// <remarks> pEnforceMinimumKeyLength is a per-call flag (default False = off, preserving prior behavior). Enforcement is no longer process-wide mutable state, so it is thread-safe and cannot be toggled for other callers.</remarks>
+    class function GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits; const pEnforceMinimumKeyLength:Boolean = False):string; overload;
+    class function GeneratePassword(const pPlainTextSecretKey:TBytes; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits; const pEnforceMinimumKeyLength:Boolean = False):string; overload;
   end;
 
 
@@ -44,7 +43,7 @@ uses
   radRTL.ByteArrayUtils;
 
 
-class function THOTP.GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
+class function THOTP.GeneratePassword(const pBase32EncodedSecretKey:string; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits; const pEnforceMinimumKeyLength:Boolean = False):string;
 var
   vEncodedKey:TBytes;
   vDecodedKey:TBytes;
@@ -54,7 +53,7 @@ begin
   vDecodedKey := nil;
   try
     vDecodedKey := TBase32.Decode(vEncodedKey);
-    Result := GeneratePassword(vDecodedKey, pCounterValue, pOutputLength);
+    Result := GeneratePassword(vDecodedKey, pCounterValue, pOutputLength, pEnforceMinimumKeyLength);
   finally
     // Scrub intermediate key material even if password generation raised (e.g. minimum-key-length rejection).
     WipeBytes(vEncodedKey);
@@ -64,7 +63,7 @@ end;
 
 
 // https://datatracker.ietf.org/doc/html/rfc4226
-class function THOTP.GeneratePassword(const pPlainTextSecretKey:TBytes; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits):string;
+class function THOTP.GeneratePassword(const pPlainTextSecretKey:TBytes; const pCounterValue:Int64; const pOutputLength:TOTPLength = TOTPLength.SixDigits; const pEnforceMinimumKeyLength:Boolean = False):string;
 var
   vData:TBytes;
   vHMAC:TBytes;
@@ -72,7 +71,7 @@ var
   vBinCode:integer;
   vPinNumber:integer;
 begin
-  if EnforceMinimumKeyLength and (Length(pPlainTextSecretKey) < RFCMinimumKeyLengthBytes) then
+  if pEnforceMinimumKeyLength and (Length(pPlainTextSecretKey) < RFCMinimumKeyLengthBytes) then
   begin
     // RFC minimum length required  (Note: did not see this limitation in other implementations)
     raise EOTPException.CreateRes(@sOTPKeyLengthTooShort);
