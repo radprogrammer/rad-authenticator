@@ -2,7 +2,7 @@
 # Pre-commit hook: gate on generated-doc drift, then bump the 3rd version number.
 
 pwsh -NoProfile -Command '
-  $result = Invoke-DelphiIncVer -File "source/radAuthenticator.Info.Pas" -IncVerTarget "Text" -IncVerStyle "WinVer" -IncVerPart "patch"  -IncVerPattern "Version\s*=\s*\x27(\d+\.\d+\.\d+)\x27"
+  $result = Invoke-DelphiIncVer -File "Source/radAuthenticator.Info.pas" -IncVerTarget "Text" -IncVerStyle "WinVer" -IncVerPart "patch"  -IncVerPattern "Version\s*=\s*\x27(\d+\.\d+\.\d+)\x27"
   if (-not $result.Success) {
     Write-Error "IncVer failed: $($result.Message)"
     exit 1
@@ -11,4 +11,7 @@ pwsh -NoProfile -Command '
 '
 
 # Stage the version file so it's included in the commit.
-git add source/radAuthenticator.Info.pas
+# NOTE: pathspec case MUST match the tracked path ("Source/", capital S). With a
+# lowercase "source/" pathspec git silently no-ops (exit 0, stages nothing) even
+# with core.ignorecase=true, leaving the bumped version unstaged after every commit.
+git add Source/radAuthenticator.Info.pas

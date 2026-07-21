@@ -3,7 +3,7 @@ unit radAuthenticator.Info;
 interface
 
 const
-  Version = '1.0.34';
+  Version = '1.0.36';
 
 
 implementation
