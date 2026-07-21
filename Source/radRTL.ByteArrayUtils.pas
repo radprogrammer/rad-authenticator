@@ -15,6 +15,9 @@ function ConvertToByteArray(const pValue:Int64):TBytes; overload;
 function ByteArraysMatch(const pArray1, pArray2:TBytes):Boolean;
 function ReverseByteArray(const pSource:TBytes):TBytes;
 
+// Best-effort scrub of a byte buffer's contents (e.g. intermediate key material).
+procedure WipeBytes(var pBytes:TBytes);
+
 
 implementation
 
@@ -47,6 +50,20 @@ begin
     begin
       Result[High(pSource) - i] := pSource[i];
     end;
+  end;
+end;
+
+
+procedure WipeBytes(var pBytes:TBytes);
+begin
+  // Best-effort zeroing of sensitive buffer contents. This is not a guarantee:
+  // it only scrubs THIS buffer instance, so any copies left behind by an earlier
+  // reallocation (SetLength growth) are not reached, and it cannot touch
+  // caller-owned buffers or immutable/reference-counted string data. Callers
+  // needing stronger assurances should own the key bytes and wipe them directly.
+  if Length(pBytes) > 0 then
+  begin
+    FillChar(pBytes[0], Length(pBytes), 0);
   end;
 end;
 

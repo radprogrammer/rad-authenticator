@@ -48,10 +48,17 @@ var
   vEncodedKey:TBytes;
   vDecodedKey:TBytes;
 begin
+  // Note: pBase32EncodedSecretKey is a caller-owned, immutable (possibly shared/interned) string and cannot be reliably wiped here; only the buffers this method allocates are scrubbed below.
   vEncodedKey := TEncoding.UTF8.GetBytes(pBase32EncodedSecretKey); // assume secret was stored as UTF8  (prover and verifier must match)
-  vDecodedKey := TBase32.Decode(vEncodedKey);
-
-  Result := GeneratePassword(vDecodedKey, pCounterValue, pOutputLength);
+  vDecodedKey := nil;
+  try
+    vDecodedKey := TBase32.Decode(vEncodedKey);
+    Result := GeneratePassword(vDecodedKey, pCounterValue, pOutputLength);
+  finally
+    // Scrub intermediate key material even if password generation raised (e.g. minimum-key-length rejection).
+    WipeBytes(vEncodedKey);
+    WipeBytes(vDecodedKey);
+  end;
 end;
 
 
@@ -70,20 +77,27 @@ begin
     raise EOTPException.CreateRes(@sOTPKeyLengthTooShort);
   end;
   vData := ReverseByteArray(ConvertToByteArray(pCounterValue)); // RFC reference implmentation reversed order of CounterValue (movingFactor) bytes
-  vHMAC := THashSHA1.GetHMACAsBytes(vData, pPlainTextSecretKey); // SHA1 = 20 byte digest
+  vHMAC := nil;
+  try
+    vHMAC := THashSHA1.GetHMACAsBytes(vData, pPlainTextSecretKey); // SHA1 = 20 byte digest
 
-  // rfc notes: extract a 4-byte dynamic binary integer code from the HMAC result
-  vOffset := vHMAC[19] and $0F; // extract a random number 0 to 15 (from the value of the very last byte of the hash digest AND 0000-1111)
+    // rfc notes: extract a 4-byte dynamic binary integer code from the HMAC result
+    vOffset := vHMAC[19] and $0F; // extract a random number 0 to 15 (from the value of the very last byte of the hash digest AND 0000-1111)
 
-  // 4 bytes extracted starting at this random offset (first bit intentionally zero'ed to avoid compatibility problems with signed vs unsigned MOD operations)
-  vBinCode := ((vHMAC[vOffset] and $7F) shl 24) // byte at offset AND 0111-1111 moved to first 8 bits of result
-    or (vHMAC[vOffset + 1] shl 16) or (vHMAC[vOffset + 2] shl 8) or vHMAC[vOffset + 3];
+    // 4 bytes extracted starting at this random offset (first bit intentionally zero'ed to avoid compatibility problems with signed vs unsigned MOD operations)
+    vBinCode := ((vHMAC[vOffset] and $7F) shl 24) // byte at offset AND 0111-1111 moved to first 8 bits of result
+      or (vHMAC[vOffset + 1] shl 16) or (vHMAC[vOffset + 2] shl 8) or vHMAC[vOffset + 3];
 
-  // trim 31-bit unsigned value to 6 to 8 digits in length
-  vPinNumber := vBinCode mod THOTP.ModTable[Ord(pOutputLength)];
+    // trim 31-bit unsigned value to 6 to 8 digits in length
+    vPinNumber := vBinCode mod THOTP.ModTable[Ord(pOutputLength)];
 
-  // Format the 6 to 8 digit OTP result by padding left with zeros as needed
-  Result := Format(FormatTable[Ord(pOutputLength)], [vPinNumber]);
+    // Format the 6 to 8 digit OTP result by padding left with zeros as needed
+    Result := Format(FormatTable[Ord(pOutputLength)], [vPinNumber]);
+  finally
+    // Scrub intermediate buffers; the caller-owned pPlainTextSecretKey is intentionally left untouched.
+    WipeBytes(vData);
+    WipeBytes(vHMAC);
+  end;
 end;
 
 

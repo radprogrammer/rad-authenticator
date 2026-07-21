@@ -4,3 +4,401 @@
 # dev-automation-tooling script & document reference: C:\code\dev-automation-tooling
 
 ---
+Title: Add opt-in strict-decode mode to TBase32.Decode that raises on invalid characters
+Issue: #12
+Labels: enhancement, security
+Body:
+`TBase32.Decode` currently skips every unmappable character silently instead of
+failing. See the `// todo` at `Source/radRTL.Base32Encoding.pas:214-222`:
+
+```pascal
+vDictionaryIndex := DecodeValues[PByteArray(pCipherText)[vSourcePosition]];
+if vDictionaryIndex = 255 then
+begin
+  // todo: Consider failing on invalid characters with Exit(EmptyStr) or Exception
+  // For now, just skip all invalid characters.
+  ...
+  Continue;
+end;
+```
+
+Because of this, a mistyped, truncated, or entirely garbage Base32 secret decodes
+to *some* byte array (possibly empty) with no error. Combined with
+`THOTP.GeneratePassword(string...)`, that produces a confident-looking OTP from an
+invalid secret -- the worst kind of silent failure for an authenticator library.
+
+Add an opt-in strict mode. When enabled, decoding raises an exception on the first
+character that is not part of the Base32 alphabet. Strict mode is **off by default**
+so existing lenient behavior is preserved; callers enable it via a new optional
+parameter.
+
+Implementation notes:
+- Add an optional `pStrict: Boolean = False` parameter to all four public
+  `Decode` overloads (`string`, `string`+`TEncoding`, `TBytes`,
+  `Pointer`+`Integer`) and thread it down to the core
+  `Decode(Pointer, Integer)` where the skip loop lives.
+- On an unmappable character in strict mode, raise a dedicated exception defined
+  in this unit (e.g. `EBase32DecodeError = class(Exception)`), not `EOTPException`
+  -- keep `radRTL.Base32Encoding` independent of `radRTL.HOTP`. Include the
+  offending character and its position in the message.
+- Default (`pStrict = False`) path must be byte-for-byte unchanged from today.
+- Decide and document padding/whitespace handling in strict mode: the pad
+  character `=` is legitimate Base32 syntax and should be tolerated (skipped),
+  whereas letters/symbols outside the alphabet should raise. Confirm whether
+  whitespace (space, tab, CR, LF) and the common `-` separator should be
+  tolerated or rejected -- pick one and cover it with tests.
+- Strict mode should also close the `Decode(string): string` foot-gun. That
+  overload (`Source/radRTL.Base32Encoding.pas:167-176`) re-encodes the raw decoded
+  bytes as UTF-8 via `pEncoding.GetString(...)`, which silently mangles binary
+  secrets: a decoded byte like `$80` is invalid UTF-8 and comes back as U+FFFD,
+  unrecoverable. The library's own OTP path is safe (it uses the `TBytes`
+  overload), but an external caller reaching for the convenient string overload
+  gets a corrupted secret with no error. The existing decode tests never catch
+  this because they only use text payloads (`'f'`, `'foo'`, `'Delphi'`, Lorem),
+  all of which are valid UTF-8.
+  Delphi's `TEncoding.UTF8` has no throw-on-invalid mode, so detect the loss with
+  a round-trip guard when `pStrict = True`: after `Result := GetString(bytes)`,
+  raise `EBase32DecodeError` if `GetBytes(Result)` does not reproduce `bytes`
+  (encoding-agnostic, catches any lossy conversion). Use a plain length+`CompareMem`
+  helper, NOT `ByteArraysMatch` (see the constant-time note in the TOTP
+  verification ticket). Lenient mode (default) keeps returning the mangled string
+  unchanged for backward compatibility.
+- Follow-on (out of scope here, file separately if desired): expose the strict
+  flag through `THOTP`/`TTOTP.GeneratePassword(string...)` so callers can reject
+  invalid secrets at the OTP layer.
+
+Acceptance criteria:
+- [ ] All four `Decode` overloads accept an optional `pStrict` parameter defaulting to `False`.
+- [ ] With `pStrict = False`, behavior is identical to current (existing Base32 tests still pass unchanged).
+- [ ] With `pStrict = True`, decoding a string containing a non-alphabet character raises `EBase32DecodeError`.
+- [ ] With `pStrict = True`, a valid Base32 string (with or without `=` padding) decodes successfully to the same bytes as lenient mode.
+- [ ] The exception message identifies the invalid character and its position.
+- [ ] With `pStrict = True`, the `Decode(string): string` overload raises `EBase32DecodeError` when the decoded payload is not valid text in the target encoding (e.g. `Decode('QA======')` -> byte `$80`); with `pStrict = False` it still returns the (lenient) mangled string.
+- [ ] New DUnit tests cover: strict rejects invalid chars, strict accepts valid + padded input, the whitespace/`-`/`=` decision is asserted, and strict rejects a binary (non-text) payload via the string overload.
+
+---
+Title: Reject non-canonical Base32 input (non-zero trailing bits and malformed padding)
+Issue: #13
+Labels: enhancement, correctness
+Body:
+`TBase32.Decode` accepts non-canonical input: it discards leftover trailing bits
+without checking they are zero, and ignores padding (`=`) entirely. RFC 4648
+section 3.5 says decoders SHOULD reject encodings where the pad/trailing bits are
+non-zero, because they are not produced by a conforming encoder.
+
+Consequences:
+- Two different input strings can map to the same decoded key (the trailing bits
+  are silently thrown away), which masks copy/paste corruption of a secret.
+- A stray extra character on the end of an otherwise-valid secret is accepted.
+
+`TestLongerInput_LoremIpsum` (`Source/Tests/DUnit/radRTL.Base32Encoding.Tests.pas:83`)
+already documents the defect -- it asserts that appending a stray `L`:
+
+```pascal
+// note: an extra unused byte may be discarded depending on padding..
+CheckEquals(LOREM_TEXT, TBase32.Decode(LOREM_BASE32+'L'));
+```
+
+still decodes to the original text (line 85 shows that two extra chars `LL`
+change the result, so the tolerance is exactly one non-canonical trailing char).
+
+Add opt-in validation that rejects non-canonical input. Like the strict-decode
+work, this is **off by default** so current lenient behavior is preserved.
+
+Implementation notes:
+- Coordinate with the invalid-character strict-decode ticket
+  (`Add opt-in strict-decode mode to TBase32.Decode ...`). Preferably fold both
+  under a single strict/canonical switch (the same `pStrict` parameter and the
+  same `EBase32DecodeError` exception) so callers get one "be strict" flag rather
+  than two overlapping ones. Decide this when the first of the two is implemented.
+- Trailing-bit check: after the decode loop, the number of unconsumed bits is
+  `vBitsInBuffer`. For a canonical encoding those residual bits must all be zero.
+  In strict mode, raise if `ExtractLastBits(vBuffer, vBitsInBuffer) <> 0`.
+- Padding check (strict mode): validate that the `=` count and position are legal
+  for the data length -- padding may only appear as a contiguous run at the very
+  end, the run length must match `pDataLength mod 8` (0/1/3/4/6 pad chars for the
+  valid quantum sizes), and no alphabet character may follow a pad char. Reject
+  otherwise. If padding validation proves large, split it into its own ticket and
+  land the trailing-bit check first (it is the higher-value RFC-3.5 fix).
+- Default (`pStrict = False`) path must remain byte-for-byte unchanged; the
+  existing `TestLongerInput_LoremIpsum` assertions stay valid for lenient mode.
+
+Acceptance criteria:
+- [ ] With strict validation off (default), decode behavior is unchanged and all existing Base32 tests pass, including the `LOREM_BASE32+'L'` tolerance case.
+- [ ] With strict validation on, decoding input whose trailing bits are non-zero raises `EBase32DecodeError`.
+- [ ] With strict validation on, `LOREM_BASE32+'L'` (a non-canonical trailing char) is rejected.
+- [ ] With strict validation on, a correctly-encoded, correctly-padded string still decodes successfully to the same bytes as lenient mode.
+- [ ] New DUnit tests demonstrate two distinct inputs that decode identically in lenient mode, where the non-canonical one is rejected in strict mode.
+- [ ] Padding position/count validation is either implemented and tested, or explicitly deferred to a new open ticket referenced here.
+
+---
+Title: Add TOTP verification with a configurable clock-skew window (constant-time)
+Issue: #14
+Labels: enhancement, security
+Body:
+The library only *generates* one-time passwords. There is no `Validate`/`Verify`
+entry point, so every consumer that needs to *check* a submitted code must
+reimplement the time-step window against the inherited `THOTP` counter overload.
+Verification is the single most important thing a verifier does, and RFC 6238
+section 5.2 explicitly requires tolerating clock skew:
+
+  "...the validation system should typically set a policy for an acceptable OTP
+   transmission delay window for validation. ... we RECOMMEND ... at most one
+   time step."
+
+Add a verification API to `TTOTP` that accepts a candidate OTP and returns
+whether it matches within +/- N time steps of the reference time.
+
+Implementation notes:
+- Public convenience overload using the current clock, e.g.:
+  `class function ValidatePassword(const pBase32EncodedSecretKey: string;`
+  `  const pCandidateOTP: string; const pWindowSteps: Integer = 1;`
+  `  const pOutputLength: TOTPLength = TOTPLength.SixDigits): Boolean;`
+- Also provide a deterministic overload that takes an explicit Unix timestamp (or
+  time-step counter) so verification can be unit-tested against the RFC 6238
+  vectors without depending on `Now`. This mirrors how generation is testable via
+  the inherited `THOTP` counter overload.
+- Window semantics: check the reference step and +/- `pWindowSteps` (default 1,
+  matching the RFC recommendation). Guard against a negative window. Consider an
+  asymmetric window (separate back/forward counts) as an optional enhancement --
+  note it, but symmetric N is the required behavior.
+- **Constant-time comparison is required.** Compare the candidate against each
+  generated OTP with a constant-time equality check so verification does not leak,
+  via timing, whether/where a match occurred. Evaluating the full window rather
+  than early-exiting on first match is the stronger option; at minimum each
+  individual comparison must be constant-time.
+- Add a constant-time comparison helper (e.g. `ConstantTimeEquals` in
+  `radRTL.ByteArrayUtils`) that XOR-accumulates over a fixed length instead of
+  short-circuiting.
+- `ByteArraysMatch` (`Source/radRTL.ByteArrayUtils.pas:54`) is currently unused
+  and is **not** constant-time (`CompareMem` short-circuits on first difference).
+  Do not use it for OTP/secret comparison. As part of this work either remove it
+  or clearly mark it as non-security-comparison; route verification through the
+  new constant-time helper.
+- Optional (note or split into its own ticket): return the matched step delta so
+  callers can detect and correct persistent client clock drift (RFC 6238 sec 6 /
+  RFC 4226 resynchronization).
+
+Acceptance criteria:
+- [ ] `TTOTP` exposes a `ValidatePassword` (or `Verify`) returning `Boolean`, with a `pWindowSteps` parameter defaulting to 1.
+- [ ] A deterministic overload accepts an explicit timestamp/counter for testing.
+- [ ] A candidate generated for the exact reference step validates.
+- [ ] A candidate generated one step earlier/later validates with the default window; two steps off fails with window = 1.
+- [ ] A wrong OTP of correct length fails.
+- [ ] Comparison uses a constant-time equality helper; `ByteArraysMatch` is not used for the comparison and is removed or marked non-security.
+- [ ] DUnit tests cover the above using the RFC 6238 secret/vectors via the deterministic overload.
+
+---
+Title: Zeroize intermediate key material after use
+Issue: #15
+Status: closed
+Labels: security
+Body:
+Decoded shared secrets and the intermediate HMAC input live in `TBytes`/`string`
+buffers that are simply released to the heap when they go out of scope, leaving
+key material in freed memory until it happens to be overwritten. A library that
+handles TOTP/HOTP shared secrets should best-effort wipe the intermediate key
+buffers it creates (`FillChar(buf[0], Length(buf), 0)`) as soon as it is done
+with them.
+
+Buffers created internally that should be wiped:
+- `THOTP.GeneratePassword(string...)` (`Source/radRTL.HOTP.pas:46-55`):
+  `vEncodedKey` and `vDecodedKey`.
+- `THOTP.GeneratePassword(TBytes...)` (`Source/radRTL.HOTP.pas:59-87`):
+  `vData` (the counter bytes) and `vHMAC` (the HMAC digest).
+- Any temporary key `TBytes` produced by `TBase32.Decode` on the OTP path.
+
+Implementation notes:
+- Wrap the sensitive locals in `try...finally` and `FillChar` them in the
+  `finally` so they are wiped even when an exception is raised (e.g. the
+  `EOTPException` minimum-key-length path).
+- Only zero buffers the library allocates. **Do not** wipe caller-owned
+  parameters (`const pPlainTextSecretKey: TBytes`, `const pBase32EncodedSecretKey:
+  string`) -- their lifetime belongs to the caller.
+- Note the known limitations, since this is best-effort rather than a guarantee:
+  Delphi `string` is immutable and reference-counted, so a `const string` secret
+  parameter cannot be reliably wiped by the callee (it may be shared/interned or
+  copied on `SetLength`); and buffer reallocation (`SetLength` growth) can leave
+  stale copies behind. Document that callers wanting stronger guarantees should
+  pass secrets as a `TBytes` they own and wipe, and manage the source string
+  themselves.
+- Consider a small helper (e.g. `WipeBytes(var b: TBytes)` in
+  `radRTL.ByteArrayUtils`) so the pattern is consistent and testable.
+
+Acceptance criteria:
+- [ ] Internal intermediate key/HMAC buffers listed above are zeroized via `FillChar` in a `finally` block after use.
+- [ ] Wiping also occurs on the exception paths (e.g. minimum-key-length rejection).
+- [ ] Caller-owned parameters are left untouched.
+- [ ] Existing HOTP/TOTP RFC-vector tests still pass unchanged (wiping does not alter output).
+- [ ] Known limitations (immutable string params, realloc copies) are documented in code comments and/or the README so the guarantee is not overstated.
+
+---
+Title: Replace process-wide EnforceMinimumKeyLength class var with per-call control
+Issue: #16
+Labels: enhancement, refactor
+Body:
+`THOTP.EnforceMinimumKeyLength` (`Source/radRTL.HOTP.pas:25-26`) is a process-wide
+`class var`. Because every method is a stateless class function, this single
+mutable global is the only place the behavior is configured -- so one thread or
+module flipping it silently changes minimum-key-length validation for **all**
+callers across the process, and toggling it from multiple threads is a data race.
+That is fragile for a shared RTL unit.
+
+Make the enforcement decision per-call instead of global mutable state.
+
+Implementation notes:
+- Add an optional parameter to the `GeneratePassword` overloads, e.g.
+  `const pEnforceMinimumKeyLength: Boolean = False`, and use it locally instead of
+  reading the class var. This keeps the default behavior (enforcement off) and
+  removes the shared-state hazard.
+- Preferred: remove the `class var` entirely. If it must stay for backward
+  compatibility, keep it only as the *default* for the new parameter and document
+  it as "set once at startup before any worker threads are created; not safe to
+  change concurrently" -- and mark it deprecated in favor of the parameter.
+- Coordinate with the other option-adding tickets (strict Base32 decode,
+  verification window): several optional behavior flags are being introduced. If
+  the parameter list starts to grow, consider a small options record
+  (e.g. `TOTPOptions`) passed by the caller rather than many boolean params.
+  Note this as a design decision; a single boolean parameter is acceptable for
+  this ticket on its own.
+- Update `THOTPTest.TestMinimumKeyLengthIgnoredByDefault` /
+  `TestMinimumKeyLengthException`
+  (`Source/Tests/DUnit/radRTL.HOTP.Tests.pas:85-97`), which currently mutate the
+  class var, to exercise the per-call parameter instead (and, if the class var is
+  removed, to stop touching it).
+
+Acceptance criteria:
+- [ ] Minimum-key-length enforcement can be selected per call without mutating process-wide state.
+- [ ] Default behavior is unchanged (enforcement off unless the caller opts in).
+- [ ] The `class var` is removed, or retained only as a documented, deprecated startup-only default with the thread-safety caveat spelled out in code.
+- [ ] The minimum-key-length DUnit tests are updated to drive the per-call parameter and still pass (short key rejected when enforced, accepted when not).
+- [ ] No remaining code path reads mutable global state to decide enforcement.
+
+---
+Title: Introduce a TOTPOptions record for OTP configuration (time step, T0, 9-digit output)
+Issue: #17
+Labels: enhancement, refactor
+Body:
+Several configuration values are currently hardcoded, and separate tickets are
+each adding their own optional parameter. Rather than let the `GeneratePassword`
+signatures accumulate booleans and integers, consolidate configuration into an
+options record that the OTP methods thread through. This ticket also lands the two
+small hardcoded-value gaps that motivated it.
+
+Hardcoded values to make configurable:
+- `TTOTP.TimeStepWindow = 30` and an implicit `T0 = 0`
+  (`Source/radRTL.TOTP.pas:17,35`). The RFC 6238 formula is
+  `T = (CurrentUnixTime - T0) div X`; today X is fixed at 30 and T0 at 0, so
+  tokens using a different step or epoch offset cannot be supported.
+- 9-digit output: the errata note at `Source/radRTL.HOTP.pas:16` mentions a
+  9-digit variant (eid2400) but `TOTPLength` stops at 8.
+
+Neither change is algorithmically complex on its own -- the point of the ticket is
+to introduce the options record as the single, extensible carrier so this and the
+related tickets stop growing the parameter lists.
+
+Design notes:
+- Add `NineDigits` to `TOTPLength`; extend `ModTable` and `FormatTable` from
+  `[0..2]` to `[0..3]` with `1000000000` and `'%.9d'`. The dynamic binary code is
+  a 31-bit value (max 2147483647), so `mod 1_000_000_000` (0..999999999) is fully
+  covered and fits the existing `Integer vPinNumber`. **Document that 10 digits is
+  intentionally unsupported** -- `mod 10^10` exceeds the 31-bit source and Int32
+  and would be biased/truncated (this is why the errata stops at 9).
+- Introduce a record carrying the generation config, e.g.:
+
+  ```pascal
+  TTOTPOptions = record
+    OutputLength: TOTPLength;         // default SixDigits
+    TimeStepSeconds: Integer;         // default 30   (TOTP only)
+    T0: Int64;                        // default 0    (TOTP only)
+    EnforceMinimumKeyLength: Boolean; // default False
+  end;
+  ```
+
+  HOTP-relevant fields (`OutputLength`, `EnforceMinimumKeyLength`) vs TOTP-only
+  fields (`TimeStepSeconds`, `T0`). Records do not inherit in Delphi; use either a
+  flat `TTOTPOptions` plus a smaller `THOTPOptions`, or one flat record with the
+  TOTP fields ignored on the HOTP path. Pick one and document applicability.
+- **Default-initialization hazard:** a bare `var o: TTOTPOptions;` zero-fills
+  every field, which makes `TimeStepSeconds = 0` -> divide-by-zero and
+  `OutputLength = SixDigits` by luck only. Provide a safe default via a
+  `class operator Initialize` (Delphi 10.4+, which this project targets) and/or a
+  `TTOTPOptions.Default` factory, AND guard at use: treat `TimeStepSeconds <= 0`
+  as invalid (raise) or coerce to 30. Do not silently divide by a zeroed field.
+- Add a new `GeneratePassword` overload taking the options record. Keep the
+  existing overloads for backward compatibility, delegating to defaults.
+- This record is the consolidation point referenced by the enforce-minimum-key
+  ticket (its per-call flag becomes `EnforceMinimumKeyLength` here) and the
+  verification-window ticket (window/step live together). Reconcile with those:
+  the options record IS the per-call mechanism, so don't also keep a separate
+  boolean parameter for enforcement.
+
+Acceptance criteria:
+- [ ] `TOTPLength` includes `NineDigits`; `ModTable`/`FormatTable` extended accordingly; a 9-digit code is produced correctly.
+- [ ] 10-digit output is documented as intentionally unsupported with the reason (31-bit source).
+- [ ] A `TTOTPOptions` (and `THOTPOptions` if split) record exists with safe defaults (6 digits, 30s step, T0 = 0, enforcement off) that cannot silently divide-by-zero on a zero-initialized value.
+- [ ] New `GeneratePassword` overload(s) accept the options record; existing overloads still compile and behave identically (RFC 4226/6238 vector tests unchanged).
+- [ ] `TimeStepSeconds <= 0` is rejected or safely defaulted, with a test.
+- [ ] Tests cover a non-30 step and a non-zero T0 producing the expected time-step counter, and a 9-digit vector. (9-digit expected values are derivable from the RFC 4226 Appendix D "Truncated Decimal" column mod 1,000,000,000 -- e.g. count 1 -> 1094287082 -> "094287082".)
+- [ ] Enforcement configuration flows through the options record, consistent with the EnforceMinimumKeyLength ticket (no duplicate mechanism).
+
+---
+Title: Deferred: OTP counter byte-order depends on a little-endian host
+Issue: #18
+Labels: portability, deferred
+Body:
+Tracking ticket for a **known, intentionally deferred** assumption -- not a bug to
+fix now.
+
+The RFC 4226 counter is built by writing the `Int64` in native memory order and
+then reversing the bytes:
+
+```pascal
+// Source/radRTL.ByteArrayUtils.pas:29-33
+function ConvertToByteArray(const pValue:Int64):TBytes;
+begin
+  SetLength(Result, SizeOf(Int64));
+  PInt64(@Result[0])^ := pValue;   // native order == little-endian on current targets
+end;
+
+// Source/radRTL.HOTP.pas:72
+vData := ReverseByteArray(ConvertToByteArray(pCounterValue));  // reversed to big-endian
+```
+
+This produces correct big-endian output **only because every current Delphi target
+is little-endian** (Win32/Win64/Linux x64/macOS/iOS/Android are all LE). On a
+hypothetical big-endian target the reverse step would flip already-correct bytes
+and produce a wrong counter. The dependency is implicit -- nothing in the code
+fails or warns on a BE host.
+
+Decision: **deferred.** Changing working, RFC-vector-verified logic to guard
+against a platform that does not exist for Delphi is not worth the churn. This
+ticket exists so the assumption is findable if that ever changes, rather than
+living only as a buried code comment. The author's blog article
+(radprogrammer.com) also details why the reversal step is done this way.
+
+Trigger to revisit: Embarcadero ships (or the project adopts) a big-endian
+Delphi target, or this code is ported to a toolchain/runtime where big-endian is
+possible.
+
+Reference fix when/if triggered (host-independent, also removes `ReverseByteArray`
+from the OTP path):
+
+```pascal
+function ConvertToBigEndianBytes(const pValue:Int64):TBytes;
+var
+  i:Integer;
+begin
+  SetLength(Result, SizeOf(Int64));
+  for i := 0 to 7 do
+    Result[i] := Byte(UInt64(pValue) shr (56 - i * 8)); // Result[0]=MSB .. Result[7]=LSB
+end;
+```
+
+Shifts act on the value, not the memory layout, so the output is identical on LE
+and BE hosts. RFC 4226/6238 vector tests are the safety net for any future swap.
+
+Acceptance criteria (only if the trigger occurs):
+- [ ] Counter byte-order is produced host-independently (shift-based conversion) and no longer relies on native memory layout + reversal.
+- [ ] RFC 4226/6238 vector tests pass on the big-endian target.
+- [ ] `ReverseByteArray` is removed from the OTP path (or retained only if still used elsewhere).

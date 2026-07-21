@@ -27,6 +27,8 @@ type
     procedure TestConvertIntAndReverseByteArray_Zero;
     procedure TestConvertIntAndReverseByteArray_One;
     procedure TestConvertIntAndReverseByteArray_Two;
+    procedure TestWipeBytes_Empty;
+    procedure TestWipeBytes_ClearsContents;
   end;
 
 
@@ -326,6 +328,39 @@ begin
   CheckFalse(ByteArraysMatch(vConverted, vReversed));
   ChecKTrue(ByteArraysMatch(vConverted, ReverseByteArray(vReversed)));
 end;
+
+procedure TByteArrayUtilsTest.TestWipeBytes_Empty;
+var
+  vInput:TBytes;
+begin
+  // Wiping an empty/unallocated array must be a safe no-op (no range error).
+  WipeBytes(vInput);
+  ChecKTrue(Length(vInput) = 0);
+end;
+
+
+procedure TByteArrayUtilsTest.TestWipeBytes_ClearsContents;
+var
+  vInput:TBytes;
+  i:Integer;
+begin
+  SetLength(vInput, 5);
+  vInput[0] := 1;
+  vInput[1] := 128;
+  vInput[2] := 200;
+  vInput[3] := 255;
+  vInput[4] := 42;
+
+  WipeBytes(vInput);
+
+  // Length is preserved; every byte is now zero.
+  ChecKTrue(Length(vInput) = 5);
+  for i := 0 to High(vInput) do
+  begin
+    ChecKTrue(vInput[i] = 0);
+  end;
+end;
+
 
 initialization
 
