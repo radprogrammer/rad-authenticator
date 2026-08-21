@@ -14,6 +14,7 @@ type
   published
     procedure TestEncodingRFCVectors;
     procedure TestDecodingRFCVectors;
+    procedure TestDecoding_UnpaddedInput;
     procedure TestDecoding_SkippedCharacters;
     procedure TestLongerInput_LoremIpsum;
     procedure TestEncodingDelphi;
@@ -44,6 +45,12 @@ begin
   CheckEquals('MZXW6YQ=', TBase32.Encode('foob'));
   CheckEquals('MZXW6YTB', TBase32.Encode('fooba'));
   CheckEquals('MZXW6YTBOI======', TBase32.Encode('foobar'));
+  // extended vectors covering the remaining input-length-mod-5 remainders
+  CheckEquals('MZXW6YTBOJZQ====', TBase32.Encode('foobars'));
+  CheckEquals('MZXW6YTBOJZTC===', TBase32.Encode('foobars1'));
+  CheckEquals('MZXW6YTBOJZTCMQ=', TBase32.Encode('foobars12'));
+  CheckEquals('MZXW6YTBOJZTCMRT', TBase32.Encode('foobars123'));
+  CheckEquals('MZXW6YTBOJZTCMRTGQ======', TBase32.Encode('foobars1234'));
 end;
 
 
@@ -56,6 +63,28 @@ begin
   CheckEquals('foob', TBase32.Decode('MZXW6YQ='));
   CheckEquals('fooba', TBase32.Decode('MZXW6YTB'));
   CheckEquals('foobar', TBase32.Decode('MZXW6YTBOI======'));
+  // extended vectors covering the remaining input-length-mod-8 remainders
+  CheckEquals('foobars', TBase32.Decode('MZXW6YTBOJZQ===='));
+  CheckEquals('foobars1', TBase32.Decode('MZXW6YTBOJZTC==='));
+  CheckEquals('foobars12', TBase32.Decode('MZXW6YTBOJZTCMQ='));
+  CheckEquals('foobars123', TBase32.Decode('MZXW6YTBOJZTCMRT'));
+  CheckEquals('foobars1234', TBase32.Decode('MZXW6YTBOJZTCMRTGQ======'));
+end;
+
+
+// Unpadded input is common in the wild (otpauth:// secrets strip '=' padding). These lengths are not multiples of 8,
+// so they exercise the decode output-buffer bound for every mod-8 remainder -- guarding against an under-allocation regression.
+procedure TBase32Test.TestDecoding_UnpaddedInput;
+begin
+  CheckEquals('f', TBase32.Decode('MY'));
+  CheckEquals('fo', TBase32.Decode('MZXQ'));
+  CheckEquals('foo', TBase32.Decode('MZXW6'));
+  CheckEquals('foob', TBase32.Decode('MZXW6YQ'));
+  CheckEquals('foobar', TBase32.Decode('MZXW6YTBOI'));
+  CheckEquals('foobars', TBase32.Decode('MZXW6YTBOJZQ'));
+  CheckEquals('foobars1', TBase32.Decode('MZXW6YTBOJZTC'));
+  CheckEquals('foobars12', TBase32.Decode('MZXW6YTBOJZTCMQ'));
+  CheckEquals('foobars1234', TBase32.Decode('MZXW6YTBOJZTCMRTGQ'));
 end;
 
 
