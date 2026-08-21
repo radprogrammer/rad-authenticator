@@ -1,5 +1,15 @@
-RADAuthenticator
-===================
+<p align="left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)"  srcset="assets/brand/radauthenticator-logo-reversed.svg">
+    <source media="(prefers-color-scheme: light)" srcset="radauthenticator-logo.svg">
+    <img alt="radAuthenticator logo" src="assets/brand/radauthenticator-logo.svg" width="420">
+  </picture>
+</p>
+
+---
+
+### rad-Authenticator
+
 Time-Based One-Time Password (TOTP) projects in Delphi with Google Authenticator compatible PIN number generation
 
 Quick Start
