@@ -1,11 +1,12 @@
 <p align="left">
   <picture>
     <source media="(prefers-color-scheme: dark)"  srcset="assets/brand/radauthenticator-logo-reversed.svg">
-    <source media="(prefers-color-scheme: light)" srcset="radauthenticator-logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/brand/radauthenticator-logo.svg">
     <img alt="radAuthenticator logo" src="assets/brand/radauthenticator-logo.svg" width="420">
   </picture>
 </p>
 
+---
 ---
 
 ### rad-Authenticator
