@@ -1,5 +1,5 @@
-// Copyright 2021 Darian Miller, Licensed under Apache-2.0
-// SPDX-License-Identifier: Apache-2.0
+// Copyright 2021 Darian Miller, Licensed under MIT
+// SPDX-License-Identifier: MIT
 // More info: www.radprogrammer.com
 unit radRTL.BitUtils;
 
